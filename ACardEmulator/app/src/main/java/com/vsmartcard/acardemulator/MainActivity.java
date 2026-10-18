@@ -22,24 +22,36 @@ package com.vsmartcard.acardemulator;
 import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.nfc.NfcAdapter;
+import android.nfc.cardemulation.CardEmulation;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
+import android.widget.ImageView;
+import android.widget.Spinner;
+import android.widget.CheckBox;
+import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
+import android.view.WindowManager;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 import com.vsmartcard.acardemulator.emulators.EmulatorSingleton;
 
 import ACardEmulator.BuildConfig;
@@ -53,6 +65,8 @@ import java.util.Objects;
 public class MainActivity extends AppCompatActivity {
 
     private TextView textViewVPCDStatus;
+    private TextView cardStatus;
+    private CardEmulation foregroundCardEmulation;
     private final BroadcastReceiver bReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -62,6 +76,10 @@ public class MainActivity extends AppCompatActivity {
                 String error = intent.getStringExtra(EmulatorSingleton.EXTRA_ERROR);
                 String deselect = intent.getStringExtra(EmulatorSingleton.EXTRA_DESELECT);
                 String install = intent.getStringExtra(EmulatorSingleton.EXTRA_INSTALL);
+                String status = intent.getStringExtra(EmulatorSingleton.EXTRA_STATUS);
+                if (status != null && !status.isEmpty()) cardStatus.setText(status);
+                textViewVPCDStatus.append(new SimpleDateFormat("HH:mm:ss", Locale.US).format(new Date()) + "\n");
+                if (textViewVPCDStatus.length() > 24000) textViewVPCDStatus.setText(textViewVPCDStatus.getText().subSequence(textViewVPCDStatus.length() - 16000, textViewVPCDStatus.length()));
                 if (install != null)
                     textViewVPCDStatus.append(getResources().getString(R.string.status_install) + ":" + install + "\n");
                 if (capdu != null)
@@ -70,6 +88,11 @@ public class MainActivity extends AppCompatActivity {
                     textViewVPCDStatus.append(getResources().getString(R.string.status_error) + ": " + error + "\n");
                 if (rapdu != null) {
                     textViewVPCDStatus.append(getResources().getString(R.string.status_rapdu) + ": " + rapdu + "\n");
+                }
+                if (deselect != null) {
+                    SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+                    boolean local = preferences.getString("emulator", getString(R.string.local_mrtd)).equals(getString(R.string.local_mrtd));
+                    cardStatus.setText(local ? "Ready · " + preferences.getString("mrtd_auth", "PACE") : "Ready");
                 }
                 if (deselect != null)
                     textViewVPCDStatus.append(getResources().getString(R.string.status_disconnected) + ": " + deselect + "\n");
@@ -84,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
     private void showStartupMessage() {
         if (dialog == null)
             dialog = new AlertDialog.Builder(this)
-                    .setMessage(R.string.startup_message)
+                    .setMessage(R.string.local_help)
                     .setTitle(R.string.startup_title)
                     .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int id) {
@@ -97,6 +120,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        PreferenceManager.setDefaultValues(this, R.xml.settings, false);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
@@ -105,20 +130,25 @@ public class MainActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                SharedPreferences SP = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
-                String emulator = SP.getString("emulator", "");
-                if (!emulator.equals(getString(R.string.vicc))) {
-                    Snackbar.make(view, "Scheduled re-installation of all applets...", Snackbar.LENGTH_LONG)
-                            .setAction("Action", null).show();
-                    EmulatorSingleton.destroyEmulator();
-                }
+                EmulatorSingleton.destroyEmulator();
+                EmulatorSingleton.createEmulator(MainActivity.this);
+                refreshCardControls();
             }
         });
 
         textViewVPCDStatus = findViewById(R.id.textViewLog);
+        cardStatus = findViewById(R.id.textViewCardStatus);
+        setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD3"}, "TD1");
+        setupSelector(R.id.authenticationMode, "mrtd_auth", new String[] {"BAC", "PACE"}, "PACE");
+        setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA"}, "Valid");
+        CheckBox displayed = findViewById(R.id.displayedImages);
+        displayed.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_displayed", false));
+        displayed.setOnCheckedChangeListener((button, checked) -> {
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_displayed", checked).apply();
+            EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
+        });
         SharedPreferences settings = getSharedPreferences(PREFS, 0);
         if (settings.getInt(PREF_LASTVERSION, 0) != BuildConfig.VERSION_CODE) {
-            showStartupMessage();
             settings.edit().putInt(PREF_LASTVERSION, BuildConfig.VERSION_CODE).apply();
         }
 
@@ -129,6 +159,54 @@ public class MainActivity extends AppCompatActivity {
 
         Intent serviceIntent = new Intent(this.getApplicationContext(), SmartcardProviderService.class);
         startService(serviceIntent);
+    }
+
+    private void setupSelector(int id, final String key, final String[] values, final String fallback) {
+        Spinner spinner = findViewById(id);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, values);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        String current = PreferenceManager.getDefaultSharedPreferences(this).getString(key, fallback);
+        for (int i = 0; i < values.length; i++) if (values[i].equals(current)) spinner.setSelection(i);
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long row) {
+                SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(MainActivity.this);
+                if (!values[position].equals(preferences.getString(key, fallback))) {
+                    preferences.edit().putString(key, values[position]).apply();
+                    EmulatorSingleton.destroyEmulator();
+                    EmulatorSingleton.createEmulator(MainActivity.this);
+                    textViewVPCDStatus.setText("");
+                    refreshCardControls();
+                }
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+    }
+
+    private void refreshCardControls() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        String emulator = preferences.getString("emulator", getString(R.string.local_mrtd));
+        boolean local = emulator.equals(getString(R.string.local_mrtd));
+        findViewById(R.id.localCardControls).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.dg2Preview).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.paControls).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.displayedImages).setVisibility(local ? View.VISIBLE : View.GONE);
+        boolean displayed = preferences.getBoolean("mrtd_displayed", false);
+        findViewById(R.id.displayedPreviews).setVisibility(local && displayed ? View.VISIBLE : View.GONE);
+        boolean td1 = preferences.getString("mrtd_format", "TD1").equals("TD1");
+        boolean pace = preferences.getString("mrtd_auth", "PACE").equals("PACE");
+        ((ImageView) findViewById(R.id.dg2Preview)).setImageResource(td1
+                ? (pace ? R.drawable.dg2_td1_pace : R.drawable.dg2_td1_bac)
+                : (pace ? R.drawable.dg2_td3_pace : R.drawable.dg2_td3_bac));
+        ((ImageView) findViewById(R.id.dg5Preview)).setImageResource(td1
+                ? (pace ? R.drawable.dg5_td1_pace : R.drawable.dg5_td1_bac)
+                : (pace ? R.drawable.dg5_td3_pace : R.drawable.dg5_td3_bac));
+        ((ImageView) findViewById(R.id.dg7Preview)).setImageResource(td1
+                ? (pace ? R.drawable.dg7_td1_pace : R.drawable.dg7_td1_bac)
+                : (pace ? R.drawable.dg7_td3_pace : R.drawable.dg7_td3_bac));
+        TextView details = findViewById(R.id.textViewCardDetails);
+        details.setText(local ? getString(R.string.fixture_details, preferences.getString("mrtd_format", "TD1").equals("TD1") ? "D23145890" : "L898902C3") : emulator);
+        cardStatus.setText(local ? EmulatorSingleton.getStatus() : "Ready");
     }
 
     @Override
@@ -175,9 +253,49 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        EmulatorSingleton.createEmulator(this);
+        refreshCardControls();
+        NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
+        if (adapter == null) {
+            return;
+        }
+        try {
+            CardEmulation cardEmulation = CardEmulation.getInstance(adapter);
+            ComponentName service = new ComponentName(this, EmulatorHostApduService.class);
+            if (cardEmulation.setPreferredService(this, service)) {
+                foregroundCardEmulation = cardEmulation;
+                Log.i("ACardEmulator", "Foreground NFC service preference registered");
+            } else {
+                textViewVPCDStatus.append("Error: Could not enable foreground NFC routing.\n");
+                Log.w("ACardEmulator", "Foreground NFC service preference was rejected");
+            }
+        } catch (RuntimeException error) {
+            textViewVPCDStatus.append("Error: Could not enable foreground NFC routing.\n");
+            Log.w("ACardEmulator", "Could not register foreground NFC service preference", error);
+        }
+    }
+
+    @Override
     protected void onPause() {
+        if (foregroundCardEmulation != null) {
+            try {
+                foregroundCardEmulation.unsetPreferredService(this);
+                Log.i("ACardEmulator", "Foreground NFC service preference released");
+            } catch (RuntimeException error) {
+                Log.w("ACardEmulator", "Could not release foreground NFC service preference", error);
+            } finally {
+                foregroundCardEmulation = null;
+            }
+        }
         if (dialog != null)
             dialog.dismiss();
         super.onPause();
+    }
+
+    @Override protected void onDestroy() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(bReceiver);
+        super.onDestroy();
     }
 }

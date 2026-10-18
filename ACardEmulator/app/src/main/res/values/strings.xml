@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Smart Card Emulator</string>
+    <string name="app_name">Travel Card 0.11</string>
 
     <string name="status_error">Error</string>
     <string name="status_disconnected">Disconnected from terminal</string>
@@ -32,6 +32,8 @@
     <string name="applet_oath">Yubico\'s OATH Applet</string>
     <string name="applet_persosim">PersoSim simulator for the german nPA</string>
     <string name="aid_persosim">F04E66E75C02D8</string>
+    <string name="applet_emrtd">ICAO Travel Document</string>
+    <string name="aid_emrtd">A0000002471001</string>
     <string name="startup_title">Tap To Emulate!</string>
     <string name="startup_message">The following smart card applets are supported:\n
         \n
@@ -44,9 +46,18 @@
         Place your device on a contact-less reader. When the reader issues a SELECT command for one of the application identifiers above, the emulator creates the appropriate applet. The emulated applet will then handle all subsequent APDUs.</string>
     <string name="action_settings">Settings</string>
     <string-array name="strEmulators">
+        <item>@string/local_mrtd</item>
         <item>@string/jcardsim</item>
         <item>@string/vicc</item>
     </string-array>
+    <string name="local_mrtd">Local travel document</string>
+    <string name="fixture_details">Document: %1$s\nBirth: 740812   Expiry: 120415\nCAN: 123456 · Photo: JPEG 160×120</string>
+    <string name="local_help">Choose TD1 or TD3 and BAC or PACE. Keep this app in the foreground with NFC enabled, then tap the reader phone. Enter the document number, birth date and expiry shown on this page in the reader.\n\nThese public test cards contain DG1 and a DG2 JPEG color test pattern. Turn on photo reading to display it. PACE uses ECDH-GM, BrainpoolP256r1 and AES-128; MRZ and CAN 123456 are supported.\n\nRemote Virtual Smart Card remains available in Settings.</string>
+    <string name="fixture_format">Document format</string>
+    <string name="fixture_authentication">Access control</string>
+    <string name="reset_card">Reset card</string>
+    <string name="exchanges">Exchanges</string>
+    <string name="dg2_preview">DG2 test image preview</string>
     <string name="jcardsim">Builtin Java Card Simulator</string>
     <string name="vicc">Remote Virtual Smart Card</string>
 

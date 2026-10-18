@@ -4,7 +4,7 @@
     <ListPreference
         android:key="emulator"
         android:title="Smart Card Emulator"
-        android:defaultValue="@string/vicc"
+        android:defaultValue="@string/local_mrtd"
         android:entries="@array/strEmulators"
         android:entryValues="@array/strEmulators" />
 

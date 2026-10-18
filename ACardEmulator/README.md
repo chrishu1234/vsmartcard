@@ -1,5 +1,8 @@
 # Android Smart Card Emulator
 
+This fork includes an offline TD1/TD3 BAC/PACE test card. See the
+[standalone build and testing guide](README-standalone.md).
+
 The Android Smart Card Emulator allows the emulation of a contact-less smart card.
 The emulator uses Android's HCE to fetch APDUs from a contact-less reader.
 The app allows to process the Command APDUs either by delegating them to a

@@ -35,4 +35,8 @@
         <aid-filter android:name="@string/aid_persosim"/>
     </aid-group>
 
+    <aid-group android:description="@string/applet_emrtd" android:category="other">
+        <aid-filter android:name="@string/aid_emrtd"/>
+    </aid-group>
+
 </host-apdu-service>

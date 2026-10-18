@@ -26,8 +26,15 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.vsmartcard.acardemulator.emulators.EmulatorSingleton;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public class EmulatorHostApduService extends HostApduService {
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Object transactionLock = new Object();
+    private int generation;
+    private boolean destroyed;
 
     @Override
     public void onCreate() {
@@ -37,24 +44,89 @@ public class EmulatorHostApduService extends HostApduService {
 
     @Override
     public byte[] processCommandApdu(byte[] capdu, Bundle extras) {
-        return EmulatorSingleton.process(this, capdu);
+        final int requestGeneration;
+        synchronized (transactionLock) {
+            if (destroyed) {
+                return new byte[] {0x6F, 0x00};
+            }
+            requestGeneration = generation;
+        }
+        final byte[] command = capdu.clone();
+        try {
+            worker.execute(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (transactionLock) {
+                        if (destroyed || requestGeneration != generation) {
+                            return;
+                        }
+                    }
+                    byte[] response;
+                    try {
+                        response = EmulatorSingleton.process(EmulatorHostApduService.this, command);
+                    } catch (RuntimeException error) {
+                        Log.e("ACardEmulator", "Could not process remote card APDU", error);
+                        response = new byte[] {0x6F, 0x00};
+                    }
+                    synchronized (transactionLock) {
+                        if (!destroyed && requestGeneration == generation && response != null) {
+                            sendResponseApdu(response);
+                        }
+                    }
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            return new byte[] {0x6F, 0x00};
+        }
+        // Network exchange must not block HostApduService's main-thread callback.
+        return null;
     }
 
     @Override
     public void onDeactivated(int reason) {
+        synchronized (transactionLock) {
+            generation++;
+        }
         Intent i = new Intent(EmulatorSingleton.TAG);
 
         Log.d("", "End transaction");
         switch (reason) {
             case DEACTIVATION_LINK_LOSS:
                 i.putExtra(EmulatorSingleton.EXTRA_DESELECT, "link lost");
-                EmulatorSingleton.deactivate();
                 break;
             case DEACTIVATION_DESELECTED:
-                EmulatorSingleton.deactivate();
                 break;
         }
 
+        if (reason == DEACTIVATION_LINK_LOSS || reason == DEACTIVATION_DESELECTED) {
+            try {
+                // Keep power-off ordered after an exchange that is already running,
+                // and before commands from the next NFC transaction.
+                worker.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            EmulatorSingleton.deactivate();
+                        } catch (RuntimeException error) {
+                            Log.e("ACardEmulator", "Could not deactivate card", error);
+                        }
+                    }
+                });
+            } catch (RejectedExecutionException ignored) {
+                // The service is already being destroyed.
+            }
+        }
+
         LocalBroadcastManager.getInstance(this).sendBroadcast(i);
+    }
+
+    @Override
+    public void onDestroy() {
+        synchronized (transactionLock) {
+            destroyed = true;
+            generation++;
+        }
+        worker.shutdownNow();
+        super.onDestroy();
     }
 }

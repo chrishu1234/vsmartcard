@@ -36,6 +36,9 @@ import org.xmlpull.v1.XmlPullParserException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import com.vsmartcard.acardemulator.emulators.mrtd.TravelDocumentEmulator;
 
 public class EmulatorSingleton {
     public static final String TAG = "com.vsmartcard.acardemulator.EmulatorService";
@@ -44,14 +47,17 @@ public class EmulatorSingleton {
     public static final String EXTRA_ERROR = "MSG_ERROR";
     public static final String EXTRA_DESELECT = "MSG_DESELECT";
     public static final String EXTRA_INSTALL = "MSG_INSTALL";
+    public static final String EXTRA_STATUS = "MSG_STATUS";
 
     private static Emulator emulator = null;
     private static boolean do_destroy = false;
+    private static Map<String, ?> activePreferences;
 
     private static void destroyEmulatorIfRequested(Context context) {
         if (do_destroy) {
-            emulator.destroy();
+            if (emulator != null) emulator.destroy();
             emulator = null;
+            activePreferences = null;
             do_destroy = false;
             Intent i = new Intent(TAG);
             i.putExtra(EXTRA_DESELECT, "Uninstalled all applets.");
@@ -59,22 +65,36 @@ public class EmulatorSingleton {
         }
     }
 
-    public static void destroyEmulator() {
+    public static synchronized void destroyEmulator() {
         do_destroy = true;
     }
 
-    public static void createEmulator(Context context) {
+    public static synchronized void createEmulator(Context context) {
+        SharedPreferences SP = PreferenceManager.getDefaultSharedPreferences(context);
+        Map<String, ?> preferences = new HashMap<>(SP.getAll());
+        if (emulator != null && !preferences.equals(activePreferences)) do_destroy = true;
         // force reloading applets if requested
         destroyEmulatorIfRequested(context);
 
         if (emulator == null) {
             Log.d("", "Begin transaction");
-            SharedPreferences SP = PreferenceManager.getDefaultSharedPreferences(context);
-            String str_emulator = SP.getString("emulator", "");
-            if (str_emulator.equals(context.getString(R.string.vicc))) {
+            String str_emulator = SP.getString("emulator", context.getString(R.string.local_mrtd));
+            if (str_emulator.equals(context.getString(R.string.local_mrtd))) {
+                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), SP.getString("mrtd_auth", "PACE"), SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false));
+            } else if (str_emulator.equals(context.getString(R.string.vicc))) {
+                final Context applicationContext = context.getApplicationContext();
                 emulator = new VICCEmulator(
                         SP.getString("hostname", VICCEmulator.DEFAULT_HOSTNAME),
-                        Integer.parseInt(SP.getString("port", Integer.toString(VICCEmulator.DEFAULT_PORT))));
+                        Integer.parseInt(SP.getString("port", Integer.toString(VICCEmulator.DEFAULT_PORT))),
+                        new VICCEmulator.ErrorListener() {
+                            @Override
+                            public void onError(String message) {
+                                Intent intent = new Intent(TAG);
+                                intent.putExtra(EXTRA_ERROR, message);
+                                LocalBroadcastManager.getInstance(applicationContext)
+                                        .sendBroadcast(intent);
+                            }
+                        });
             } else {
                 emulator = new JCEmulator(context,
                         SP.getBoolean("activate_openpgp", false),
@@ -83,14 +103,17 @@ public class EmulatorSingleton {
                         SP.getBoolean("activate_pivapplet", false),
                         SP.getBoolean("activate_gidsapplet", false));
             }
+            activePreferences = preferences;
         }
     }
 
-    public static byte[] process(Context context, byte[] capdu) {
+    public static synchronized byte[] process(Context context, byte[] capdu) {
+        createEmulator(context);
         byte[] rapdu = emulator.process(capdu);
 
         Intent i = new Intent(TAG);
         i.putExtra(EXTRA_CAPDU, Util.byteArrayToHexString(capdu));
+        i.putExtra(EXTRA_STATUS, getStatus());
         if (rapdu != null)
             i.putExtra(EXTRA_RAPDU, Util.byteArrayToHexString(rapdu));
         LocalBroadcastManager.getInstance(context).sendBroadcast(i);
@@ -124,7 +147,11 @@ public class EmulatorSingleton {
         return aidList.toArray(new String[0]);
     }
 
-    public static void deactivate() {
-        emulator.deactivate();
+    public static synchronized String getStatus() {
+        return emulator instanceof TravelDocumentEmulator ? ((TravelDocumentEmulator) emulator).getStatus() : "";
+    }
+
+    public static synchronized void deactivate() {
+        if (emulator != null) emulator.deactivate();
     }
 }

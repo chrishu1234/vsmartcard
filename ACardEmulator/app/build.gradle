@@ -3,15 +3,19 @@ apply plugin: 'com.android.application'
 android {
     compileSdk 34
     defaultConfig {
-        applicationId "com.vsmartcard.acardemulator"
+        applicationId "com.vsmartcard.acardemulator.standalone"
         minSdk 21
         //noinspection ExpiredTargetSdkVersion
         targetSdk 34
-        versionCode 9
-        versionName "4.0"
+        versionCode 15
+        versionName "5.0-0.11-displayed-images"
+        testInstrumentationRunner 'com.vsmartcard.acardemulator.verification.PAInstrumentation'
         base.archivesName = "ACardEmulator-$versionName"
     }
     buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -19,6 +23,9 @@ android {
     }
     buildFeatures {
         buildConfig true
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
     }
     flavorDimensions = ["distribution"]
     productFlavors {
@@ -31,6 +38,8 @@ android {
         }
     }
     sourceSets {
+        androidTest.java.srcDirs += 'src/sharedTest/java'
+        androidTest.assets.srcDirs += '../verification/fixtures/pa'
         main.java.srcDirs += 'src/main/external/jcardsim/src/main/java'
         main.java.exclude('com/licel/jcardsim/smartcardio/*')
         main.java.exclude('com/licel/jcardsim/remote/*')
@@ -54,6 +63,7 @@ repositories {
 }
 
 dependencies {
+    testImplementation 'junit:junit:4.13.2'
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
