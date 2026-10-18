@@ -145,6 +145,7 @@ public class MainActivity extends AppCompatActivity {
         setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD3"}, "TD1");
         setupSelector(R.id.authenticationMode, "mrtd_auth", new String[] {"BAC", "PACE"}, "PACE");
         setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA"}, "Valid");
+        setupSelector(R.id.chipScenario, "mrtd_chip", new String[] {"Valid", "Bad AA signature", "Wrong CA key"}, "Valid");
         CheckBox displayed = findViewById(R.id.displayedImages);
         displayed.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_displayed", false));
         displayed.setOnCheckedChangeListener((button, checked) -> {
@@ -220,7 +221,8 @@ public class MainActivity extends AppCompatActivity {
         TextView securityPreview = findViewById(R.id.securityFilesPreview);
         boolean showSecurity = local && preferences.getBoolean("mrtd_security", false);
         securityPreview.setVisibility(showSecurity ? View.VISIBLE : View.GONE);
-        securityPreview.setText(showSecurity ? loadDetailPreview("security", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
+        findViewById(R.id.chipControls).setVisibility(showSecurity ? View.VISIBLE : View.GONE);
+        securityPreview.setText(showSecurity ? loadDetailPreview("security", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")).replace("AA: NOT_CHECKED", td1 ? "AA: RSA signing" : "AA: ECDSA signing").replace("CA: NOT_CHECKED", td1 ? "CA: DH / AES-128" : "CA: ECDH / AES-128") : "");
         ((ImageView) findViewById(R.id.dg2Preview)).setImageResource(td1
                 ? (pace ? R.drawable.dg2_td1_pace : R.drawable.dg2_td1_bac)
                 : (pace ? R.drawable.dg2_td3_pace : R.drawable.dg2_td3_bac));

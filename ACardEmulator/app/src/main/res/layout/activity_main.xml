@@ -50,6 +50,12 @@
             <TextView android:id="@+id/additionalDetailsPreview" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:padding="16dp" android:textSize="14sp"
                 android:lineSpacingExtra="2dp" android:textIsSelectable="true" android:visibility="gone" />
+            <LinearLayout android:id="@+id/chipControls" android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <TextView android:text="Chip test" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+                <Spinner android:id="@+id/chipScenario" android:contentDescription="AA and CA test scenario"
+                    android:layout_width="0dp" android:layout_weight="1" android:layout_height="48dp" />
+            </LinearLayout>
             <TextView android:id="@+id/securityFilesPreview" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:padding="16dp" android:textSize="14sp"
                 android:lineSpacingExtra="2dp" android:textIsSelectable="true" android:visibility="gone" />

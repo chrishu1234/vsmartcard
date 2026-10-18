@@ -8,6 +8,7 @@ import json
 import hashlib
 
 parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--chip-only', action='store_true', help='Run the 24 full AA/CA scenarios with all optional groups.')
 parser.add_argument('--regenerate-photos', action='store_true', help='Regenerate all four labeled JPEG, DG2 and preview fixtures.')
 parser.add_argument('--regenerate-sod', action='store_true', help='Generate new test certificates and SODs; then resync HarmonyOS PA fixtures.')
 parser.add_argument('--generate-fixtures-only', action='store_true', help='Generate requested fixtures without running the reader matrix.')
@@ -67,9 +68,9 @@ for photo in photo_manifest['fixtures']:
     assert hashlib.sha256(dg2).hexdigest() == photo['dg2SHA256'], f'{name} DG2 mismatch'
 subprocess.run([JAVAC, '-encoding', 'UTF-8', '-cp', oracle_cp, '-d', str(CLASSES), str(ROOT / 'verification/StandaloneReaderOracle.java')], check=True)
 passed = 0
-for security in (False, True):
-    for details in (False, True):
-        for displayed in (False, True):
+for security in ((True,) if args.chip_only else (False, True)):
+    for details in ((True,) if args.chip_only else (False, True)):
+        for displayed in ((True,) if args.chip_only else (False, True)):
             for format_name in ('TD1', 'TD3'):
                 for mode, key, pa in [(mode, key, pa) for mode, key in (('BAC', 'MRZ'), ('PACE', 'MRZ'), ('PACE', 'CAN'))
                                       for pa in ('Valid', 'Altered DG1', 'Bad signature', 'Untrusted CSCA')]:

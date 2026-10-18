@@ -1,3 +1,31 @@
+AA / CA card-side implementation (2026-10-18)
+--------------------------------------------
+Version 8.0-0.11-chip-auth (code 19) adds live AA and CA handlers in Local travel
+document mode. Enable Security information (DG14 / DG15); the Chip test selector
+then offers Valid, Bad AA signature and Wrong CA key. Existing BAC/PACE, PA and
+optional file selectors remain independent. Match optional groups on the reader.
+The preview identifies RSA signing + DH (TD1), or ECDSA signing + ECDH (TD3).
+
+INTERNAL AUTHENTICATE signs an eight-byte challenge using RSA ISO 9796-2 or
+ECDSA raw r||s. CA v1 uses MSE KAT or MSE AT/GENERAL AUTHENTICATE, DH/ECDH and
+3DES/AES-128/192/256. CA responds through the old channel before installing fresh
+keys/SSC zero; the next protected command checks the new channel. Bad AA signature
+alters the response; Wrong CA key intentionally derives different channel keys.
+Full CA v2 token/nonce mutual authentication, TA and PACE-CAM are not implemented.
+
+Synthetic AA/CA card private keys are intentionally bundled to implement these
+operations. They are public development fixtures, not real document keys. Private
+CSCA/DSC signing keys are still never saved or shipped. Existing DG14/DG15 bytes,
+SOD variants and the public development CSCA are unchanged this round.
+
+Verification: Android JVM tests 18/18; original JMRTD reader 24/24 chip-enabled
+scenarios; exact ArkTS reader full matrix 306/306, plus 14/14 chip-only positive/
+negative scenarios for each of four CA ciphers; HarmonyOS native XTS/Hypium
+1050/1050. Protocol matrices run over local test transports, not NFC. The updated
+APK and HAP are installed for the user to perform physical two-phone contact.
+
+The following entries retain earlier rounds' historical scope and results.
+
 DG14 / DG15 security metadata (2026-10-18)
 -----------------------------------------
 Version 7.0-0.11-security-info (code 18) adds Security information (DG14 / DG15),

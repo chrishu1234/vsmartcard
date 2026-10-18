@@ -181,6 +181,23 @@ public final class StandaloneReaderOracle {
             try { CertPathValidator.getInstance("PKIX").validate(factory.generateCertPath(Collections.singletonList(sod.getDocSigningCertificate())), parameters); }
             catch (CertPathValidatorException expected) { trustOK = false; }
             check(trustOK != paScenario.equals("Untrusted CSCA"), "Certificate trust outcome");
+            if(security){
+                DG14File d14=new DG14File(new ByteArrayInputStream(file(card,wrapper,0x010E)));
+                java.security.PublicKey aaKey=new DG15File(new ByteArrayInputStream(file(card,wrapper,0x010F))).getPublicKey();
+                byte[] challenge=h("0102030405060708");
+                AAResult aa=new AAProtocol(new AAAPDUSender(card),wrapper).doAA(aaKey,format.equals("TD1")?"SHA-1":"SHA-256",format.equals("TD1")?"SHA1WithRSA/ISO9796-2":"SHA256withECDSA",challenge);
+                boolean validAA;
+                if(format.equals("TD1")){
+                    org.bouncycastle.crypto.signers.ISO9796d2Signer verifier=new org.bouncycastle.crypto.signers.ISO9796d2Signer(new org.bouncycastle.crypto.engines.RSAEngine(),new org.bouncycastle.crypto.digests.SHA1Digest(),true);
+                    verifier.init(false,org.bouncycastle.crypto.util.PublicKeyFactory.createKey(aaKey.getEncoded()));verifier.updateWithRecoveredMessage(aa.getResponse());verifier.update(challenge,0,8);validAA=verifier.verifySignature(aa.getResponse());
+                }else{
+                    java.security.Signature verifier=java.security.Signature.getInstance("SHA256withPLAIN-ECDSA",Util.getBouncyCastleProvider());verifier.initVerify(aaKey);verifier.update(challenge);validAA=verifier.verify(aa.getResponse());
+                }
+                check(validAA,"Independent original AA signature verification failed");
+                ChipAuthenticationInfo caInfo=d14.getChipAuthenticationInfos().get(0);ChipAuthenticationPublicKeyInfo caKey=d14.getChipAuthenticationPublicKeyInfos().get(0);
+                EACCAResult ca=new EACCAProtocol(new EACCAAPDUSender(card),wrapper,256,true).doCA(caInfo.getKeyId(),caInfo.getObjectIdentifier(),caKey.getObjectIdentifier(),caKey.getSubjectPublicKey());
+                wrapper=ca.getWrapper();check(Arrays.equals(file(card,wrapper,0x0101),dg1Bytes),"Independent original CA new-channel proof failed");
+            }
             check(plain(card, "00B0000004").getSW() == 0x6982, "Plaintext session bypass");
             check(secure(card, wrapper, new CommandAPDU(h("0022C1A412800A04007F0007020204020283010184010D"))).getSW() == 0x6985, "Protected reauthentication must preserve the active channel");
             check(secure(card, wrapper, new CommandAPDU(h("00A4020C020103"))).getSW() == 0x6A82, "Missing DG3 status");
@@ -199,7 +216,7 @@ public final class StandaloneReaderOracle {
             file(card, wrapper, 0x0101);
             check(card.raw(new byte[] {0}).getSW() == 0x9000, "Link reset");
             check(card.transmit(wrapper.wrap(new CommandAPDU(h("00B0000004")))).getSW() != 0x9000, "Session survived link loss");
-            System.out.println("PASS " + format + " " + mode + " " + scenario + " / " + paScenario + ": DG1 + DG2"+(displayed?" + DG5/DG7":"")+(details?" + DG11/DG12":"")+(security?" + DG14/DG15":"")+" + SOD/hash/CMS/native PKIX; access, MAC/replay and recovery checks");
+            System.out.println("PASS " + format + " " + mode + " " + scenario + " / " + paScenario + ": DG1 + DG2"+(displayed?" + DG5/DG7":"")+(details?" + DG11/DG12":"")+(security?" + DG14/DG15 + AA/CA":"")+" + SOD/hash/CMS/native PKIX; access, MAC/replay and recovery checks");
         } finally { card.close(); }
     }
 }

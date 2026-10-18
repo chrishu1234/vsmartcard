@@ -7,6 +7,20 @@ import com.vsmartcard.acardemulator.emulators.Emulator;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import javax.crypto.interfaces.DHPrivateKey;
+import org.bouncycastle.jce.interfaces.ECPrivateKey;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.crypto.signers.ISO9796d2Signer;
+import org.bouncycastle.crypto.engines.RSAEngine;
+import org.bouncycastle.crypto.digests.SHA1Digest;
+import org.bouncycastle.crypto.util.PrivateKeyFactory;
+import org.bouncycastle.asn1.ASN1InputStream;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.DERInteger;
 import java.util.List;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,7 +43,13 @@ public final class TravelDocumentEmulator implements Emulator {
     private ECPoint generator, peer, publicPoint;
     private int phase = -1, selectedFile;
     private boolean applicationSelected, destroyed;
-    private SecureChannel channel;
+    private SecureChannel channel, pendingChannel;
+    private final byte[] aaPrivateBytes;
+    private final PrivateKey caPrivate;
+    private boolean caReady;
+    private int caCipher = 2;
+    private final ByteArrayOutputStream caSegments = new ByteArrayOutputStream();
+    private String chipScenario = "Valid";
 
     public TravelDocumentEmulator(String format, String authentication) {
         this(format, authentication, "Valid");
@@ -58,6 +78,9 @@ public final class TravelDocumentEmulator implements Emulator {
         dg12 = additionalDetails ? loadFixture("dg12-" + fixture, 0x6C) : null;
         dg14 = securityFiles ? loadFixture("dg14-" + fixture, 0x6E) : null;
         dg15 = securityFiles ? loadFixture("dg15-" + fixture, 0x6F) : null;
+        aaPrivateBytes = securityFiles ? loadFixture("aa-private-" + fixture, 0x30) : null;
+        try { caPrivate = securityFiles ? KeyFactory.getInstance(format.equals("TD1") ? "DH" : "EC", new BouncyCastleProvider()).generatePrivate(new PKCS8EncodedKeySpec(loadFixture("ca-private-" + fixture, 0x30))) : null; }
+        catch (GeneralSecurityException error) { throw new IllegalStateException("Could not load synthetic CA key", error); }
         com = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")),
                 tlv(0x5C, hex("6175" + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
         String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "");
@@ -67,6 +90,11 @@ public final class TravelDocumentEmulator implements Emulator {
                 : "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<" + "L898902C36UTO7408122F1204159ZE184226B<<<<<10";
         dg1 = tlv(0x61, tlv(0x5F1F, ascii(paScenario.equals("Altered DG1") ? mrz.replace("ERIKSSON", "XRIKSSON") : mrz)));
         mrzInformation = ascii((format.equals("TD1") ? "D231458907" : "L898902C36") + "7408122" + "1204159");
+    }
+    /** Optional synthetic negative cases, independent from PA scenarios. */
+    public synchronized void setChipScenario(String scenario) {
+        if (!(scenario.equals("Valid") || scenario.equals("Bad AA signature") || scenario.equals("Wrong CA key"))) throw new IllegalArgumentException("Unknown chip scenario");
+        reset(); chipScenario = scenario;
     }
     private static byte[] ascii(String text) { return text.getBytes(StandardCharsets.US_ASCII); }
     private static byte[] loadFixture(String fixture, int tag) {
@@ -108,7 +136,10 @@ public final class TravelDocumentEmulator implements Emulator {
             int sw = 0x9000;
             try { result = execute(c); }
             catch (Status status) { result = new byte[0]; sw = status.sw; }
-            return protectedCommand ? active.wrap(result, sw) : concat(result, new byte[] {(byte) (sw >> 8), (byte) sw});
+            byte[] response = protectedCommand ? active.wrap(result, sw) : concat(result, new byte[] {(byte) (sw >> 8), (byte) sw});
+            // The CA response still belongs to the old channel. Install new keys only afterwards.
+            if (pendingChannel != null) { if (channel != null) channel.destroy(); channel = pendingChannel; pendingChannel = null; }
+            return response;
         } catch (Status status) {
             if (protectedCommand) { reset(); return hex("6988"); }
             return new byte[] {(byte) (status.sw >> 8), (byte) status.sw};
@@ -119,6 +150,8 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private byte[] execute(Command c) throws GeneralSecurityException {
         require(c.cla == 0 || (c.cla == 0x10 && c.ins == 0x86), 0x6E00);
+        if (channel != null && c.ins == 0x88) return activeAuthenticate(c);
+        if (channel != null && (c.ins == 0x22 || c.ins == 0x86)) return chipAuthenticate(c);
         if (c.ins == 0x22 || c.ins == 0x82 || c.ins == 0x84 || c.ins == 0x86) require(channel == null, 0x6985);
         switch (c.ins) {
             case 0xA4: return select(c);
@@ -134,6 +167,71 @@ public final class TravelDocumentEmulator implements Emulator {
                 catch (Status | GeneralSecurityException | IllegalArgumentException error) { resetSecurity(); throw new Status(0x6300); }
             default: throw new Status(0x6D00);
         }
+    }
+    private byte[] activeAuthenticate(Command c) throws GeneralSecurityException {
+        require(securityFiles && applicationSelected, 0x6985);
+        require(c.p1 == 0 && c.p2 == 0 && c.data.length == 8, 0x6A86);
+        byte[] response;
+        if (caPrivate instanceof DHPrivateKey) {
+            // ICAO RSA AA uses ISO 9796-2 partial message recovery: random M1 || challenge.
+            ISO9796d2Signer signer = new ISO9796d2Signer(new RSAEngine(), new SHA1Digest(), true);
+            try { signer.init(true, PrivateKeyFactory.createKey(aaPrivateBytes)); }
+            catch (IOException error) { throw new GeneralSecurityException(error); }
+            byte[] message = concat(random(234),c.data);
+            signer.update(message,0,message.length); try { response = signer.generateSignature(); } catch (org.bouncycastle.crypto.CryptoException error) { throw new GeneralSecurityException(error); } finally { wipe(message); }
+        } else {
+            Signature signer = Signature.getInstance("SHA256withECDSA",new BouncyCastleProvider());
+            signer.initSign(KeyFactory.getInstance("EC",new BouncyCastleProvider()).generatePrivate(new PKCS8EncodedKeySpec(aaPrivateBytes)));
+            signer.update(c.data); byte[] der = signer.sign();
+            try {
+                ASN1Sequence seq = (ASN1Sequence)new ASN1InputStream(der).readObject();
+                response = concat(fixed(DERInteger.getInstance(seq.getObjectAt(0)).getPositiveValue(),32),fixed(DERInteger.getInstance(seq.getObjectAt(1)).getPositiveValue(),32));
+            } catch(IOException error){throw new GeneralSecurityException(error);}
+        }
+        if(chipScenario.equals("Bad AA signature")) response[response.length-1] ^= 1;
+        return response;
+    }
+    private static byte[] fixed(BigInteger value,int size) {
+        byte[] encoded=value.toByteArray(); if(encoded.length>size && encoded[0]==0)encoded=slice(encoded,1,encoded.length);
+        require(encoded.length<=size,0x6A80);byte[] out=new byte[size];System.arraycopy(encoded,0,out,size-encoded.length,encoded.length);return out;
+    }
+    private byte[] chipAuthenticate(Command c) throws GeneralSecurityException {
+        require(securityFiles && applicationSelected,0x6985);
+        if(c.ins==0x22){
+            require(c.p1==0x41,0x6985);require(c.p2==0xA4 || c.p2==0xA6,0x6A86);
+            caReady=false;caSegments.reset(); List<TLV> fields=objects(c.data);
+            require(fields.size()==1 || fields.size()==2,0x6A80);
+            if(fields.size()==2)require(fields.get(1).tag==0x84 && equal(fields.get(1).value,hex("01")),0x6A88);
+            if(c.p2==0xA6){ require(fields.get(0).tag==0x91,0x6A80);caCipher=1;establishCA(fields.get(0).value);return new byte[0]; }
+            byte[] oid=fields.get(0).value;require(fields.get(0).tag==0x80 && oid.length==10,0x6A80);
+            require(equal(slice(oid,0,8),hex("04007F0007020203")),0x6A80);
+            require(oid[8]==(caPrivate instanceof DHPrivateKey?1:2) && oid[9]>=2 && oid[9]<=4,0x6A80);
+            caCipher=oid[9];caReady=true;return new byte[0];
+        }
+        require(c.ins==0x86 && c.p1==0 && c.p2==0 && caReady,0x6985);
+        List<TLV> outer=objects(c.data);require(outer.size()==1 && outer.get(0).tag==0x7C,0x6A80);
+        byte[] segment=outer.get(0).value;require(caSegments.size()+segment.length<=4096,0x6700);caSegments.write(segment,0,segment.length);
+        if(c.cla==0x10)return tlv(0x7C,new byte[0]);
+        require(c.cla==0,0x6E00); List<TLV> fields=objects(caSegments.toByteArray());caSegments.reset();
+        require(fields.size()==1 && fields.get(0).tag==0x80,0x6A80);caReady=false;establishCA(fields.get(0).value);return tlv(0x7C,new byte[0]);
+    }
+    private void establishCA(byte[] peerBytes) throws GeneralSecurityException {
+        byte[] secret;
+        if(caPrivate instanceof DHPrivateKey){
+            DHPrivateKey key=(DHPrivateKey)caPrivate;BigInteger y=new BigInteger(1,peerBytes),p=key.getParams().getP();
+            require(y.compareTo(BigInteger.ONE)>0 && y.compareTo(p.subtract(BigInteger.ONE))<0,0x6A80);
+            secret=fixed(y.modPow(key.getX(),p),(p.bitLength()+7)/8);
+        }else{
+            ECPrivateKey key=(ECPrivateKey)caPrivate;
+            ECPoint shared=point(peerBytes).multiply(key.getD());require(!shared.isInfinity(),0x6A80);secret=fixed(shared.getX().toBigInteger(),32);
+        }
+        if(chipScenario.equals("Wrong CA key"))secret[0]^=1;
+        int size=caCipher<=2?16:caCipher==3?24:32;
+        byte[] enc=caKdf(secret,1,size),macKey=caKdf(secret,2,size);wipe(secret);
+        pendingChannel=new SecureChannel(caCipher!=1,enc,macKey,new byte[caCipher==1?8:16]);wipe(enc);wipe(macKey);selectedFile=0;
+    }
+    private byte[] caKdf(byte[] secret,int counter,int size)throws GeneralSecurityException {
+        return java.util.Arrays.copyOf(java.security.MessageDigest.getInstance(size==16?"SHA-1":"SHA-256").digest(concat(secret,new byte[]{0,0,0,(byte)counter})),size);
     }
     private byte[] select(Command c) {
         require(c.p2 == 0 || c.p2 == 0x0C, 0x6A86);
@@ -256,6 +354,7 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private byte[] token(ECPoint point) { return mac(true, sessionMac, tlv(0x7F49, concat(tlv(6, OID), tlv(0x86, encode(point))))); }
     private void resetSecurity() {
+        caReady=false;caSegments.reset();if(pendingChannel!=null){pendingChannel.destroy();pendingChannel=null;}
         if (channel != null) channel.destroy(); channel = null;
         wipe(challenge); challenge = null; wipe(passwordKey); passwordKey = null;
         wipe(sessionEnc); sessionEnc = null; wipe(sessionMac); sessionMac = null;
@@ -263,5 +362,5 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private void reset() { resetSecurity(); applicationSelected = false; selectedFile = 0; }
     @Override public synchronized void deactivate() { reset(); }
-    @Override public synchronized void destroy() { reset(); destroyed = true; }
+    @Override public synchronized void destroy() { reset(); wipe(aaPrivateBytes); destroyed = true; }
 }
