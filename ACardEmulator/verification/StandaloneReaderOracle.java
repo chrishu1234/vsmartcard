@@ -93,6 +93,8 @@ public final class StandaloneReaderOracle {
         String format = args[1], mode = args[2], scenario = args[3], paScenario = args.length > 5 ? args[5] : "Valid";
         boolean can = scenario.equals("CAN");
         boolean displayed = args.length > 7 && args[7].equals("displayed");
+        boolean details = args.length > 8 && args[8].equals("details");
+        boolean security = args.length > 9 && args[9].equals("security");
         String document = format.equals("TD1") ? "D23145890" : "L898902C3";
         try {
             // A wrong MRZ/CAN must be rejected, and a subsequent valid attempt must recover.
@@ -103,7 +105,11 @@ public final class StandaloneReaderOracle {
             SecureMessagingWrapper wrapper = authenticate(card, mode, document, can, false);
             check(secure(card, wrapper, new CommandAPDU(h("00A4040C07A0000002471001"))).getSW() == 0x9000, "Protected application SELECT");
             COMFile com = new COMFile(new ByteArrayInputStream(file(card, wrapper, 0x011E)));
-            check(Arrays.equals(com.getTagList(), displayed ? new int[] {0x61, 0x75, 0x65, 0x67} : new int[] {0x61, 0x75}), "COM must declare the configured groups");
+            java.util.List<Integer> tags = new java.util.ArrayList<>(Arrays.asList(0x61,0x75));
+            if(displayed) tags.addAll(Arrays.asList(0x65,0x67));
+            if(details) tags.addAll(Arrays.asList(0x6B,0x6C));
+            if(security) tags.addAll(Arrays.asList(0x6E,0x6F));
+            check(Arrays.equals(com.getTagList(), tags.stream().mapToInt(Integer::intValue).toArray()), "COM must declare the configured groups");
             byte[] dg1Bytes = file(card, wrapper, 0x0101);
             MRZInfo mrz = new DG1File(new ByteArrayInputStream(dg1Bytes)).getMRZInfo();
             check(mrz.getDocumentNumber().equals(document) && mrz.getDateOfBirth().equals("740812") && mrz.getDateOfExpiry().equals("120415"), "MRZ mismatch");
@@ -130,6 +136,35 @@ public final class StandaloneReaderOracle {
                 BufferedImage decoded = ImageIO.read(new ByteArrayInputStream(picture));
                 check(decoded != null && decoded.getWidth() == (number == 5 ? 160 : 240) && decoded.getHeight() == (number == 5 ? 120 : 80), "Displayed JPEG decode");
                 check(Arrays.equals(hash.digest(encoded), sod.getDataGroupHashes().get(number)), "DG"+number+" hash outcome");
+            }
+            if(details) {
+                byte[] personal=file(card,wrapper,0x010B), documentDetails=file(card,wrapper,0x010C);
+                DG11File dg11=new DG11File(new ByteArrayInputStream(personal));
+                DG12File dg12=new DG12File(new ByteArrayInputStream(documentDetails));
+                check(dg11.getNameOfHolder().equals("ERIKSSON<<ANNA<MARIA / 测试"),"DG11 Unicode name");
+                check(dg11.getFullDateOfBirth().equals("19740812"),"DG11 full birth date");
+                check(dg12.getIssuingAuthority().equals("TEST AUTHORITY "+format),"DG12 authority");
+                check(dg12.getDateOfIssue().equals("20240102"),"DG12 issue date");
+                check((dg11.getProofOfCitizenship()!=null)==format.equals("TD1"),"DG11 full/partial fields");
+                check((dg12.getImageOfFront()!=null)==format.equals("TD1"),"DG12 full/partial fields");
+                if(format.equals("TD1")) {
+                    Path directory=Paths.get(args[4]).getParent();
+                    check(Arrays.equals(dg11.getProofOfCitizenship(),Files.readAllBytes(directory.resolve("dg7-"+format.toLowerCase()+"-"+mode.toLowerCase()+".jpg"))),"Citizenship bytes");
+                    check(Arrays.equals(dg12.getImageOfFront(),Files.readAllBytes(directory.resolve("dg5-"+format.toLowerCase()+"-"+mode.toLowerCase()+".jpg"))),"Front image bytes");
+                }
+                check(Arrays.equals(hash.digest(personal),sod.getDataGroupHashes().get(11)),"DG11 signed hash");
+                check(Arrays.equals(hash.digest(documentDetails),sod.getDataGroupHashes().get(12)),"DG12 signed hash");
+            }
+            if(security) {
+                byte[] securityBytes=file(card,wrapper,0x010E), keyBytes=file(card,wrapper,0x010F);
+                DG14File dg14=new DG14File(new ByteArrayInputStream(securityBytes));
+                DG15File dg15=new DG15File(new ByteArrayInputStream(keyBytes));
+                check(dg14.getChipAuthenticationInfos().size()==1 && dg14.getChipAuthenticationPublicKeyInfos().size()==1,"DG14 CA info/public key");
+                check(dg14.getTerminalAuthenticationInfos().size()==1,"DG14 TA metadata");
+                check(dg14.getActiveAuthenticationInfos().size()==(format.equals("TD1")?0:1),"DG14 EC AA metadata");
+                check(dg15.getPublicKey().getAlgorithm().equals(format.equals("TD1")?"RSA":"EC"),"DG15 key algorithm");
+                check(Arrays.equals(hash.digest(securityBytes),sod.getDataGroupHashes().get(14)),"DG14 signed hash");
+                check(Arrays.equals(hash.digest(keyBytes),sod.getDataGroupHashes().get(15)),"DG15 signed hash");
             }
             check(Arrays.equals(hash.digest(dg1Bytes), sod.getDataGroupHashes().get(1)) != paScenario.equals("Altered DG1"), "DG1 hash outcome");
             check(Arrays.equals(hash.digest(dg2Bytes), sod.getDataGroupHashes().get(2)), "DG2 hash outcome");
@@ -164,7 +199,7 @@ public final class StandaloneReaderOracle {
             file(card, wrapper, 0x0101);
             check(card.raw(new byte[] {0}).getSW() == 0x9000, "Link reset");
             check(card.transmit(wrapper.wrap(new CommandAPDU(h("00B0000004")))).getSW() != 0x9000, "Session survived link loss");
-            System.out.println("PASS " + format + " " + mode + " " + scenario + " / " + paScenario + ": DG1 + DG2 + SOD/hash/CMS/native PKIX; access, MAC/replay and recovery checks");
+            System.out.println("PASS " + format + " " + mode + " " + scenario + " / " + paScenario + ": DG1 + DG2"+(displayed?" + DG5/DG7":"")+(details?" + DG11/DG12":"")+(security?" + DG14/DG15":"")+" + SOD/hash/CMS/native PKIX; access, MAC/replay and recovery checks");
         } finally { card.close(); }
     }
 }

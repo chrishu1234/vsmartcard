@@ -7,8 +7,8 @@ android {
         minSdk 21
         //noinspection ExpiredTargetSdkVersion
         targetSdk 34
-        versionCode 15
-        versionName "5.0-0.11-displayed-images"
+        versionCode 18
+        versionName "7.0-0.11-security-info"
         testInstrumentationRunner 'com.vsmartcard.acardemulator.verification.PAInstrumentation'
         base.archivesName = "ACardEmulator-$versionName"
     }

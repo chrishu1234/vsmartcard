@@ -80,7 +80,7 @@ public class EmulatorSingleton {
             Log.d("", "Begin transaction");
             String str_emulator = SP.getString("emulator", context.getString(R.string.local_mrtd));
             if (str_emulator.equals(context.getString(R.string.local_mrtd))) {
-                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), SP.getString("mrtd_auth", "PACE"), SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false));
+                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), SP.getString("mrtd_auth", "PACE"), SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false));
             } else if (str_emulator.equals(context.getString(R.string.vicc))) {
                 final Context applicationContext = context.getApplicationContext();
                 emulator = new VICCEmulator(

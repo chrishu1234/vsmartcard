@@ -1,0 +1,25 @@
+DG11
+Full name: ERIKSSON<<ANNA<MARIA / 测试
+Other names: TEST ALIAS / 测试别名
+Personal number: TEST-td1-bac
+Full birth date: 19740812
+Place of birth: TEST CITY / TEST REGION
+Address: TEST STREET 1 / TEST CITY
+Telephone: 000000000
+Profession: TEST ENGINEER
+Title: TEST TITLE
+Summary: SYNTHETIC DETAILS ONLY
+Citizenship image: 3085 bytes
+Other documents: TEST-DOC-1 / TEST-DOC-2
+Custody: TEST CUSTODY
+
+DG12
+Issuing authority: TEST AUTHORITY TD1
+Issue date: 20240102
+Other persons: OTHER TEST PERSON
+Endorsements: DEVELOPMENT TEST ONLY
+Tax / exit requirements: TEST REQUIREMENT
+Front image: 4086 bytes
+Rear image: 3085 bytes
+Personalization date/time: 20240102130405
+Personalization system: TEST-DEVICE-001

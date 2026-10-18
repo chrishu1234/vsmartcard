@@ -6,7 +6,7 @@ import java.net.*;
 /** Runs the APK's exact card implementation with its pinned BC 1.46 dependency. */
 public final class StandaloneCardServer {
     public static void main(String[] args) throws Exception {
-        TravelDocumentEmulator card = new TravelDocumentEmulator(args[0], args[1], args.length > 2 ? args[2] : "Valid", args.length > 3 && args[3].equals("displayed"));
+        TravelDocumentEmulator card = new TravelDocumentEmulator(args[0], args[1], args.length > 2 ? args[2] : "Valid", args.length > 3 && args[3].equals("displayed"), args.length > 4 && args[4].equals("details"), args.length > 5 && args[5].equals("security"));
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
             server.setSoTimeout(20000);
             System.out.println(server.getLocalPort()); System.out.flush();

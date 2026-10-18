@@ -1,3 +1,59 @@
+DG14 / DG15 security metadata (2026-10-18)
+-----------------------------------------
+Version 7.0-0.11-security-info (code 18) adds Security information (DG14 / DG15),
+default off. Turning it on provides the files and shows a selectable preview.
+The HarmonyOS reader has the matching Read security information option. All
+three optional flags must match for full PA PASS; COM and SOD have variants
+for all eight combinations. Read photo supplies DG2 for its signed hash.
+
+DG14 has CA algorithm/public-key info, CVCA file metadata and (for PACE) a
+PACEInfo. TD1 has RSA DG15 / DH CA keys, TD3 EC DG15 / EC CA keys plus ECDSA AA
+metadata. RSA AA does not need the ECDSA-specific ActiveAuthenticationInfo.
+The preview uses original-Java parsed data, SPKI byte length and SHA-256 so
+both screens can be compared. AA/CA remain NOT_CHECKED: no AA/CA APDU handlers
+are implemented in this round. Key pairs are synthetic and generated only
+in memory; private keys are not saved or shipped.
+
+GenerateSecurityFixtures.java uses the unmodified JMRTD 0.8.9 writers with
+BC 1.86 (ASN1Integer(int) is needed by these classes). Protocol reader / SOD
+writer processes retain BC 1.79; the actual APK card engine uses BC 1.46.
+Regenerating SODs changes the development trust root: regenerate HarmonyOS
+vectors, rebuild and install both apps. No original Java artifact was patched.
+
+Verification: original Java reader -> engine 192 scenarios; ArkTS -> same APK
+engine 306; Android unit tests 18; HarmonyOS device XTS/Hypium 995 (synthetic
+records/native crypto, including four native key imports). Phone contact is
+performed by the user. Earlier entries below retain historical scope/results.
+
+DG11 / DG12 additional details (2026-10-18)
+----------------------------------------
+The local travel-card screen has an independent Additional details (DG11 / DG12)
+checkbox (default off). Enabling it also shows a selectable DG11/DG12 preview
+on the scrollable home screen. Changing TD1/TD3 or BAC/PACE refreshes the
+preview, and disabling the checkbox hides it. Labels and binary byte counts
+match the HarmonyOS reader. TD1 fixtures carry full synthetic fields, TD3 partial
+fields; both BAC and PACE expose matching files after authentication. COM and
+SOD reflect the enabled combination of additional images and details. The
+HarmonyOS reader has a matching Read additional details option. Enable Read
+photo and Verify SOD / PA for complete fixture verification; match both optional
+flags for a six-group PASS. CAN 123456 is available with PACE.
+
+GenerateDetailFixtures.java uses the unmodified JMRTD 0.8.9 writers. Existing
+GenerateSODFixtures.java now signs all four optional-group combinations, including
+valid / altered DG1 / bad signature / untrusted CSCA scenarios. Private keys are
+never saved. Regenerating SODs changes the development CSCA: resync HarmonyOS
+PA vectors and its public demo root, rebuild, and install both updated apps.
+Version 6.1-0.11-details-preview (code 17) adds the home-screen preview.
+GenerateDetailFixtures reads the actual served binary files through original
+JMRTD before writing details-preview-*.txt. Its --preview-only option updates
+only preview text, preserving card data, SODs and development certificates.
+Independent original Java reader regression: 96 scenarios; ArkTS reader against
+the same APK engine: 154 scenarios. These are loopback protocol tests, not NFC
+or UI automation. HarmonyOS device XTS: 852/852 with synthetic inputs and native
+crypto. Detail image fields are raw bytes; the reader demo shows byte counts.
+
+Earlier entries below retain their historical scope and validation counts.
+
 # Standalone travel-document test card
 
 Base: `virtualsmartcard-0.11`, commit `82bc5ad066b26ee057d2af200c1a66e3a65a9743`.

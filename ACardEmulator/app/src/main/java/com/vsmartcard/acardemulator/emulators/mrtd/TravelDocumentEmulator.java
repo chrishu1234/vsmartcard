@@ -22,8 +22,8 @@ public final class TravelDocumentEmulator implements Emulator {
     private static final byte[] CARD_ACCESS = hex("31143012060A04007F0007020204020202010202010D");
     private static final byte[] COM = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")), tlv(0x5C, hex("6175"))));
     private final boolean pace;
-    private final byte[] dg1, dg2, dg5, dg7, com, sod, mrzInformation;
-    private final boolean displayedImages;
+    private final byte[] dg1, dg2, dg5, dg7, dg11, dg12, dg14, dg15, com, sod, mrzInformation;
+    private final boolean displayedImages, additionalDetails, securityFiles;
     private byte[] challenge, passwordKey, sessionEnc, sessionMac;
     private BigInteger nonce;
     private ECPoint generator, peer, publicPoint;
@@ -38,16 +38,29 @@ public final class TravelDocumentEmulator implements Emulator {
         this(format, authentication, paScenario, false);
     }
     public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages) {
+        this(format, authentication, paScenario, displayedImages, false);
+    }
+    public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails) {
+        this(format, authentication, paScenario, displayedImages, additionalDetails, false);
+    }
+    public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles) {
         if (!(format.equals("TD1") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
         if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA"))) throw new IllegalArgumentException("Unsupported PA scenario");
         pace = authentication.equals("PACE");
         this.displayedImages = displayedImages;
+        this.additionalDetails = additionalDetails;
+        this.securityFiles = securityFiles;
         String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + authentication.toLowerCase(java.util.Locale.ROOT);
         dg2 = loadFixture("dg2-" + fixture, 0x75);
         dg5 = displayedImages ? loadFixture("dg5-" + fixture, 0x65) : null;
         dg7 = displayedImages ? loadFixture("dg7-" + fixture, 0x67) : null;
-        com = displayedImages ? tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")), tlv(0x5C, hex("61756567")))) : COM;
-        String sodPrefix = displayedImages ? "sod-displayed-" : "sod-";
+        dg11 = additionalDetails ? loadFixture("dg11-" + fixture, 0x6B) : null;
+        dg12 = additionalDetails ? loadFixture("dg12-" + fixture, 0x6C) : null;
+        dg14 = securityFiles ? loadFixture("dg14-" + fixture, 0x6E) : null;
+        dg15 = securityFiles ? loadFixture("dg15-" + fixture, 0x6F) : null;
+        com = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")),
+                tlv(0x5C, hex("6175" + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
+        String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "");
         sod = loadFixture(sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture, 0x77);
         String mrz = format.equals("TD1")
                 ? "I<UTOD231458907<<<<<<<<<<<<<<<" + "7408122F1204159UTO<<<<<<<<<<<6" + "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
@@ -135,7 +148,7 @@ public final class TravelDocumentEmulator implements Emulator {
             int fid = (c.data[0] & 255) * 256 + (c.data[1] & 255);
             if (fid == 0x3F00) { applicationSelected = false; selectedFile = 0; }
             else if (fid == 0x011C && !applicationSelected && pace) selectedFile = fid;
-            else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || displayedImages && (fid == 0x0105 || fid == 0x0107))) selectedFile = fid;
+            else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || displayedImages && (fid == 0x0105 || fid == 0x0107) || additionalDetails && (fid == 0x010B || fid == 0x010C) || securityFiles && (fid == 0x010E || fid == 0x010F))) selectedFile = fid;
             else throw new Status(0x6A82);
         }
         return new byte[0];
@@ -150,6 +163,10 @@ public final class TravelDocumentEmulator implements Emulator {
             else if (applicationSelected && sfi == 2) selectedFile = 0x0102;
             else if (applicationSelected && displayedImages && sfi == 5) selectedFile = 0x0105;
             else if (applicationSelected && displayedImages && sfi == 7) selectedFile = 0x0107;
+            else if (applicationSelected && additionalDetails && sfi == 11) selectedFile = 0x010B;
+            else if (applicationSelected && additionalDetails && sfi == 12) selectedFile = 0x010C;
+            else if (applicationSelected && securityFiles && sfi == 14) selectedFile = 0x010E;
+            else if (applicationSelected && securityFiles && sfi == 15) selectedFile = 0x010F;
             else if (applicationSelected && sfi == 29) selectedFile = 0x011D;
             else if (applicationSelected && sfi == 30) selectedFile = 0x011E;
             else if (!applicationSelected && sfi == 28 && pace) selectedFile = 0x011C;
@@ -158,7 +175,7 @@ public final class TravelDocumentEmulator implements Emulator {
         }
         require(selectedFile != 0, 0x6986);
         require(selectedFile == 0x011C || channel != null, 0x6982);
-        byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x011D ? sod : com;
+        byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
         require(offset < file.length, 0x6B00);
         // With AES padding, 224 plaintext bytes would produce 258 protected data
         // bytes, beyond short Le=256. Announce the supported read length; the

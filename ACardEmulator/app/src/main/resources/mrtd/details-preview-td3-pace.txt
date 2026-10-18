@@ -1,0 +1,11 @@
+DG11
+Full name: ERIKSSON<<ANNA<MARIA / 测试
+Personal number: TEST-td3-pace
+Full birth date: 19740812
+Place of birth: TEST CITY / TEST REGION
+
+DG12
+Issuing authority: TEST AUTHORITY TD3
+Issue date: 20240102
+Endorsements: DEVELOPMENT TEST ONLY
+Personalization date/time: 20240102130405

@@ -61,6 +61,10 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import java.util.Objects;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -147,6 +151,18 @@ public class MainActivity extends AppCompatActivity {
             PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_displayed", checked).apply();
             EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
         });
+        CheckBox additionalDetails = findViewById(R.id.additionalDetails);
+        additionalDetails.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_details", false));
+        additionalDetails.setOnCheckedChangeListener((button, checked) -> {
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_details", checked).apply();
+            EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
+        });
+        CheckBox securityFiles = findViewById(R.id.securityFiles);
+        securityFiles.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_security", false));
+        securityFiles.setOnCheckedChangeListener((button, checked) -> {
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_security", checked).apply();
+            EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
+        });
         SharedPreferences settings = getSharedPreferences(PREFS, 0);
         if (settings.getInt(PREF_LASTVERSION, 0) != BuildConfig.VERSION_CODE) {
             settings.edit().putInt(PREF_LASTVERSION, BuildConfig.VERSION_CODE).apply();
@@ -191,10 +207,20 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.dg2Preview).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.paControls).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.displayedImages).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.additionalDetails).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.securityFiles).setVisibility(local ? View.VISIBLE : View.GONE);
         boolean displayed = preferences.getBoolean("mrtd_displayed", false);
         findViewById(R.id.displayedPreviews).setVisibility(local && displayed ? View.VISIBLE : View.GONE);
         boolean td1 = preferences.getString("mrtd_format", "TD1").equals("TD1");
         boolean pace = preferences.getString("mrtd_auth", "PACE").equals("PACE");
+        TextView detailPreview = findViewById(R.id.additionalDetailsPreview);
+        boolean showDetails = local && preferences.getBoolean("mrtd_details", false);
+        detailPreview.setVisibility(showDetails ? View.VISIBLE : View.GONE);
+        detailPreview.setText(showDetails ? loadDetailPreview("details", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
+        TextView securityPreview = findViewById(R.id.securityFilesPreview);
+        boolean showSecurity = local && preferences.getBoolean("mrtd_security", false);
+        securityPreview.setVisibility(showSecurity ? View.VISIBLE : View.GONE);
+        securityPreview.setText(showSecurity ? loadDetailPreview("security", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
         ((ImageView) findViewById(R.id.dg2Preview)).setImageResource(td1
                 ? (pace ? R.drawable.dg2_td1_pace : R.drawable.dg2_td1_bac)
                 : (pace ? R.drawable.dg2_td3_pace : R.drawable.dg2_td3_bac));
@@ -207,6 +233,22 @@ public class MainActivity extends AppCompatActivity {
         TextView details = findViewById(R.id.textViewCardDetails);
         details.setText(local ? getString(R.string.fixture_details, preferences.getString("mrtd_format", "TD1").equals("TD1") ? "D23145890" : "L898902C3") : emulator);
         cardStatus.setText(local ? EmulatorSingleton.getStatus() : "Ready");
+    }
+
+    private String loadDetailPreview(String kind, String fixture) {
+        try (InputStream input = getClass().getResourceAsStream("/mrtd/" + kind + "-preview-" + fixture + ".txt")) {
+            if (input == null) throw new IOException("Missing additional details preview: " + fixture);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024]; int count;
+            while ((count = input.read(buffer)) != -1) {
+                if (bytes.size() + count > 16384) throw new IOException("Additional details preview too large");
+                bytes.write(buffer, 0, count);
+            }
+            return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+        } catch (IOException error) {
+            Log.w("ACardEmulator", "Could not load additional details preview", error);
+            return "Preview unavailable";
+        }
     }
 
     @Override

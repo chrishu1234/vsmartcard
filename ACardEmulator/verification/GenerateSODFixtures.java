@@ -68,17 +68,23 @@ public final class GenerateSODFixtures {
             put(out.resolve("sod-untrusted-" + id + ".bin"), alien);
             put(vectors.resolve("dg1-" + id + ".bin"), dg1); put(vectors.resolve("dg2-" + id + ".bin"), dg2);
             for (String prefix : new String[]{"sod-", "sod-bad-signature-", "sod-untrusted-"}) put(vectors.resolve(prefix + id + ".bin"), Files.readAllBytes(out.resolve(prefix + id + ".bin")));
-            for (int number : new int[]{5, 7}) {
-                byte[] encoded = Files.readAllBytes(out.resolve("dg" + number + "-" + id + ".bin"));
-                hashes.put(number, MessageDigest.getInstance("SHA-256").digest(encoded));
-                put(vectors.resolve("dg" + number + "-" + id + ".bin"), encoded);
+            Map<Integer,byte[]> baseHashes = new TreeMap<>(hashes);
+            for (int options=1;options<=7;options++) {
+                hashes = new TreeMap<>(baseHashes);
+                String prefix = "sod-" + ((options&1)!=0 ? "displayed-" : "") + ((options&2)!=0 ? "details-" : "") + ((options&4)!=0 ? "security-" : "");
+                for (int number : new int[]{5,7,11,12,14,15}) {
+                    if (number<10 && (options&1)==0 || (number==11||number==12) && (options&2)==0 || number>=14 && (options&4)==0) continue;
+                    byte[] encoded = Files.readAllBytes(out.resolve("dg"+number+"-"+id+".bin"));
+                    hashes.put(number, MessageDigest.getInstance("SHA-256").digest(encoded));
+                    put(vectors.resolve("dg"+number+"-"+id+".bin"),encoded);
+                }
+                byte[] signed = new SODFile("SHA-256","SHA256withRSA",hashes,ds.getPrivate(),dsc).getEncoded();
+                byte[] unsignedRoot = new SODFile("SHA-256","SHA256withRSA",hashes,otherDS.getPrivate(),alienDSC).getEncoded();
+                put(out.resolve(prefix+id+".bin"),signed);
+                put(out.resolve(prefix+"bad-signature-"+id+".bin"),badSignature(signed));
+                put(out.resolve(prefix+"untrusted-"+id+".bin"),unsignedRoot);
+                for(String suffix:new String[]{"","bad-signature-","untrusted-"}) put(vectors.resolve(prefix+suffix+id+".bin"),Files.readAllBytes(out.resolve(prefix+suffix+id+".bin")));
             }
-            byte[] displayed = new SODFile("SHA-256", "SHA256withRSA", hashes, ds.getPrivate(), dsc).getEncoded();
-            byte[] displayedAlien = new SODFile("SHA-256", "SHA256withRSA", hashes, otherDS.getPrivate(), alienDSC).getEncoded();
-            put(out.resolve("sod-displayed-" + id + ".bin"), displayed);
-            put(out.resolve("sod-displayed-bad-signature-" + id + ".bin"), badSignature(displayed));
-            put(out.resolve("sod-displayed-untrusted-" + id + ".bin"), displayedAlien);
-            for (String prefix : new String[]{"sod-displayed-", "sod-displayed-bad-signature-", "sod-displayed-untrusted-"}) put(vectors.resolve(prefix + id + ".bin"), Files.readAllBytes(out.resolve(prefix + id + ".bin")));
         }
         System.out.println("Generated four SOD fixtures, invalid-signature/untrusted variants and public test CSCA. No private keys saved.");
     }
