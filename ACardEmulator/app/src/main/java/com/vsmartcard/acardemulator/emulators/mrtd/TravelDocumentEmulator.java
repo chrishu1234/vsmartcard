@@ -36,8 +36,8 @@ public final class TravelDocumentEmulator implements Emulator {
     private static final byte[] CARD_ACCESS = hex("31143012060A04007F0007020204020202010202010D");
     private static final byte[] COM = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")), tlv(0x5C, hex("6175"))));
     private final boolean pace;
-    private final byte[] dg1, dg2, dg5, dg7, dg11, dg12, dg14, dg15, com, sod, mrzInformation;
-    private final boolean displayedImages, additionalDetails, securityFiles;
+    private final byte[] dg1, dg2, dg3, dg4, dg5, dg7, dg11, dg12, dg14, dg15, com, sod, mrzInformation;
+    private final boolean displayedImages, additionalDetails, securityFiles, biometricFiles;
     private byte[] challenge, passwordKey, sessionEnc, sessionMac;
     private BigInteger nonce;
     private ECPoint generator, peer, publicPoint;
@@ -50,6 +50,7 @@ public final class TravelDocumentEmulator implements Emulator {
     private int caCipher = 2;
     private final ByteArrayOutputStream caSegments = new ByteArrayOutputStream();
     private String chipScenario = "Valid";
+    private int selectMFResponse = 0x9000;
 
     public TravelDocumentEmulator(String format, String authentication) {
         this(format, authentication, "Valid");
@@ -64,14 +65,20 @@ public final class TravelDocumentEmulator implements Emulator {
         this(format, authentication, paScenario, displayedImages, additionalDetails, false);
     }
     public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles) {
+        this(format, authentication, paScenario, displayedImages, additionalDetails, securityFiles, false);
+    }
+    public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles, boolean biometricFiles) {
         if (!(format.equals("TD1") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
         if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA"))) throw new IllegalArgumentException("Unsupported PA scenario");
         pace = authentication.equals("PACE");
         this.displayedImages = displayedImages;
         this.additionalDetails = additionalDetails;
         this.securityFiles = securityFiles;
+        this.biometricFiles = biometricFiles;
         String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + authentication.toLowerCase(java.util.Locale.ROOT);
         dg2 = loadFixture("dg2-" + fixture, 0x75);
+        dg3 = biometricFiles ? loadFixture("dg3-" + fixture, 0x63) : null;
+        dg4 = biometricFiles ? loadFixture("dg4-" + fixture, 0x76) : null;
         dg5 = displayedImages ? loadFixture("dg5-" + fixture, 0x65) : null;
         dg7 = displayedImages ? loadFixture("dg7-" + fixture, 0x67) : null;
         dg11 = additionalDetails ? loadFixture("dg11-" + fixture, 0x6B) : null;
@@ -82,8 +89,8 @@ public final class TravelDocumentEmulator implements Emulator {
         try { caPrivate = securityFiles ? KeyFactory.getInstance(format.equals("TD1") ? "DH" : "EC", new BouncyCastleProvider()).generatePrivate(new PKCS8EncodedKeySpec(loadFixture("ca-private-" + fixture, 0x30))) : null; }
         catch (GeneralSecurityException error) { throw new IllegalStateException("Could not load synthetic CA key", error); }
         com = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")),
-                tlv(0x5C, hex("6175" + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
-        String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "");
+                tlv(0x5C, hex("6175" + (biometricFiles ? "6376" : "") + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
+        String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "") + (biometricFiles ? "biometric-" : "");
         sod = loadFixture(sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture, 0x77);
         String mrz = format.equals("TD1")
                 ? "I<UTOD231458907<<<<<<<<<<<<<<<" + "7408122F1204159UTO<<<<<<<<<<<6" + "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
@@ -95,6 +102,15 @@ public final class TravelDocumentEmulator implements Emulator {
     public synchronized void setChipScenario(String scenario) {
         if (!(scenario.equals("Valid") || scenario.equals("Bad AA signature") || scenario.equals("Wrong CA key"))) throw new IllegalArgumentException("Unknown chip scenario");
         reset(); chipScenario = scenario;
+    }
+    /** Temporary BAC compatibility fixture; PACE cards retain normal MF access. */
+    public synchronized void setRejectSelectMF(boolean reject) {
+        setSelectMFResponse(reject ? 0x6A81 : 0x9000);
+    }
+    /** Reject only SELECT MF, before changing file selection or authentication state. */
+    public synchronized void setSelectMFResponse(int status) {
+        if (status != 0x9000 && status != 0x6A81 && status != 0x6700) throw new IllegalArgumentException("Unsupported SELECT MF response");
+        reset(); selectMFResponse = pace ? 0x9000 : status;
     }
     private static byte[] ascii(String text) { return text.getBytes(StandardCharsets.US_ASCII); }
     private static byte[] loadFixture(String fixture, int tag) {
@@ -235,6 +251,10 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private byte[] select(Command c) {
         require(c.p2 == 0 || c.p2 == 0x0C, 0x6A86);
+        if (selectMFResponse != 0x9000 && c.p1 == 0 && (c.data.length == 0
+                || (c.data.length == 2 && c.data[0] == 0x3F && c.data[1] == 0))) {
+            throw new Status(selectMFResponse);
+        }
         if (c.p1 == 4) {
             require(equal(c.data, AID), 0x6A82);
             applicationSelected = true; selectedFile = 0;
@@ -246,7 +266,7 @@ public final class TravelDocumentEmulator implements Emulator {
             int fid = (c.data[0] & 255) * 256 + (c.data[1] & 255);
             if (fid == 0x3F00) { applicationSelected = false; selectedFile = 0; }
             else if (fid == 0x011C && !applicationSelected && pace) selectedFile = fid;
-            else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || displayedImages && (fid == 0x0105 || fid == 0x0107) || additionalDetails && (fid == 0x010B || fid == 0x010C) || securityFiles && (fid == 0x010E || fid == 0x010F))) selectedFile = fid;
+            else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || biometricFiles && (fid == 0x0103 || fid == 0x0104) || displayedImages && (fid == 0x0105 || fid == 0x0107) || additionalDetails && (fid == 0x010B || fid == 0x010C) || securityFiles && (fid == 0x010E || fid == 0x010F))) selectedFile = fid;
             else throw new Status(0x6A82);
         }
         return new byte[0];
@@ -259,6 +279,8 @@ public final class TravelDocumentEmulator implements Emulator {
             require((c.p1 & 0x60) == 0, 0x6A86);
             if (applicationSelected && sfi == 1) selectedFile = 0x0101;
             else if (applicationSelected && sfi == 2) selectedFile = 0x0102;
+            else if (applicationSelected && biometricFiles && sfi == 3) selectedFile = 0x0103;
+            else if (applicationSelected && biometricFiles && sfi == 4) selectedFile = 0x0104;
             else if (applicationSelected && displayedImages && sfi == 5) selectedFile = 0x0105;
             else if (applicationSelected && displayedImages && sfi == 7) selectedFile = 0x0107;
             else if (applicationSelected && additionalDetails && sfi == 11) selectedFile = 0x010B;
@@ -273,7 +295,7 @@ public final class TravelDocumentEmulator implements Emulator {
         }
         require(selectedFile != 0, 0x6986);
         require(selectedFile == 0x011C || channel != null, 0x6982);
-        byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
+        byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0103 ? dg3 : selectedFile == 0x0104 ? dg4 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
         require(offset < file.length, 0x6B00);
         // With AES padding, 224 plaintext bytes would produce 258 protected data
         // bytes, beyond short Le=256. Announce the supported read length; the

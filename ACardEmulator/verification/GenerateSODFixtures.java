@@ -69,11 +69,12 @@ public final class GenerateSODFixtures {
             put(vectors.resolve("dg1-" + id + ".bin"), dg1); put(vectors.resolve("dg2-" + id + ".bin"), dg2);
             for (String prefix : new String[]{"sod-", "sod-bad-signature-", "sod-untrusted-"}) put(vectors.resolve(prefix + id + ".bin"), Files.readAllBytes(out.resolve(prefix + id + ".bin")));
             Map<Integer,byte[]> baseHashes = new TreeMap<>(hashes);
-            for (int options=1;options<=7;options++) {
+            for (int options=1;options<=15;options++) {
                 hashes = new TreeMap<>(baseHashes);
-                String prefix = "sod-" + ((options&1)!=0 ? "displayed-" : "") + ((options&2)!=0 ? "details-" : "") + ((options&4)!=0 ? "security-" : "");
-                for (int number : new int[]{5,7,11,12,14,15}) {
-                    if (number<10 && (options&1)==0 || (number==11||number==12) && (options&2)==0 || number>=14 && (options&4)==0) continue;
+                String prefix = "sod-" + ((options&1)!=0 ? "displayed-" : "") + ((options&2)!=0 ? "details-" : "") + ((options&4)!=0 ? "security-" : "") + ((options&8)!=0 ? "biometric-" : "");
+                for (int number : new int[]{3,4,5,7,11,12,14,15}) {
+                    if ((number==3||number==4) && (options&8)==0) continue;
+                    if ((number==5||number==7) && (options&1)==0 || (number==11||number==12) && (options&2)==0 || number>=14 && (options&4)==0) continue;
                     byte[] encoded = Files.readAllBytes(out.resolve("dg"+number+"-"+id+".bin"));
                     hashes.put(number, MessageDigest.getInstance("SHA-256").digest(encoded));
                     put(vectors.resolve("dg"+number+"-"+id+".bin"),encoded);

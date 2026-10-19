@@ -146,7 +146,17 @@ public class MainActivity extends AppCompatActivity {
         setupSelector(R.id.authenticationMode, "mrtd_auth", new String[] {"BAC", "PACE"}, "PACE");
         setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA"}, "Valid");
         setupSelector(R.id.chipScenario, "mrtd_chip", new String[] {"Valid", "Bad AA signature", "Wrong CA key"}, "Valid");
+        String mfFallback = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_reject_mf", false)
+                ? "Reject (6A81)" : "Normal (9000)";
+        setupSelector(R.id.selectMFResponse, "mrtd_mf_response",
+                new String[] {"Normal (9000)", "Reject (6A81)", "Wrong length (6700)"}, mfFallback);
         CheckBox displayed = findViewById(R.id.displayedImages);
+        CheckBox biometric = findViewById(R.id.biometricFiles);
+        biometric.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_biometric", false));
+        biometric.setOnCheckedChangeListener((button, checked) -> {
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_biometric", checked).apply();
+            EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
+        });
         displayed.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_displayed", false));
         displayed.setOnCheckedChangeListener((button, checked) -> {
             PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_displayed", checked).apply();
@@ -208,12 +218,21 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.dg2Preview).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.paControls).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.displayedImages).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.biometricFiles).setVisibility(local ? View.VISIBLE : View.GONE);
+        boolean biometrics = local && preferences.getBoolean("mrtd_biometric", false);
+        findViewById(R.id.biometricPreviews).setVisibility(biometrics ? View.VISIBLE : View.GONE);
         findViewById(R.id.additionalDetails).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.securityFiles).setVisibility(local ? View.VISIBLE : View.GONE);
         boolean displayed = preferences.getBoolean("mrtd_displayed", false);
         findViewById(R.id.displayedPreviews).setVisibility(local && displayed ? View.VISIBLE : View.GONE);
         boolean td1 = preferences.getString("mrtd_format", "TD1").equals("TD1");
         boolean pace = preferences.getString("mrtd_auth", "PACE").equals("PACE");
+        ((ImageView) findViewById(R.id.fingerRightPreview)).setImageResource(td1 ? (pace ? R.drawable.dg3_td1_pace_0 : R.drawable.dg3_td1_bac_0) : (pace ? R.drawable.dg3_td3_pace_0 : R.drawable.dg3_td3_bac_0));
+        ((ImageView) findViewById(R.id.fingerLeftPreview)).setImageResource(td1 ? (pace ? R.drawable.dg3_td1_pace_1 : R.drawable.dg3_td1_bac_1) : (pace ? R.drawable.dg3_td3_pace_1 : R.drawable.dg3_td3_bac_1));
+        ((ImageView) findViewById(R.id.irisRightPreview)).setImageResource(td1 ? (pace ? R.drawable.dg4_td1_pace_0 : R.drawable.dg4_td1_bac_0) : (pace ? R.drawable.dg4_td3_pace_0 : R.drawable.dg4_td3_bac_0));
+        ((ImageView) findViewById(R.id.irisLeftPreview)).setImageResource(td1 ? (pace ? R.drawable.dg4_td1_pace_1 : R.drawable.dg4_td1_bac_1) : (pace ? R.drawable.dg4_td3_pace_1 : R.drawable.dg4_td3_bac_1));
+        ((TextView) findViewById(R.id.biometricPreviewInfo)).setText(biometrics ? loadDetailPreview("biometric", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
+        findViewById(R.id.selectMFControls).setVisibility(local && !pace ? View.VISIBLE : View.GONE);
         TextView detailPreview = findViewById(R.id.additionalDetailsPreview);
         boolean showDetails = local && preferences.getBoolean("mrtd_details", false);
         detailPreview.setVisibility(showDetails ? View.VISIBLE : View.GONE);

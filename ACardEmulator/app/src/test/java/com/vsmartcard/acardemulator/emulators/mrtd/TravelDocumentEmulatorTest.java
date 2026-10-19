@@ -28,6 +28,102 @@ public class TravelDocumentEmulatorTest {
             if (mode.equals("PACE")) assertArrayEquals(hex("31143012060A04007F0007020204020202010202010D9000"), card.process(hex("00B0000000")));
         }
     }
+    @Test public void rejectedMasterFileSelectionIsOptionalAndDoesNotChangeOtherSelections() {
+        for (String format : new String[] {"TD1", "TD3"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
+            sw(card, "00A4000C", "9000");
+            sw(card, "00A4000C023F00", "9000");
+            card.setRejectSelectMF(true);
+            sw(card, "00A4040C07A0000002471001", "9000");
+            sw(card, "00A4000C023F00", "6A81");
+            sw(card, "00A4000C", "6A81");
+            sw(card, "00A4020C020101", "9000");
+            sw(card, "00B0000004", "6982");
+            sw(card, "0084000008", "9000");
+            card.deactivate();
+            sw(card, "00A4000C023F00", "6A81");
+            card.setRejectSelectMF(false);
+            sw(card, "00A4000C023F00", "9000");
+            sw(card, "00A4000C", "9000");
+        }
+    }
+    @Test public void rejectedMasterFileFixtureDoesNotAffectPACE() {
+        for (String format : new String[] {"TD1", "TD3"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, "PACE");
+            card.setRejectSelectMF(true);
+            sw(card, "00A4000C", "9000");
+            sw(card, "00A4000C023F00", "9000");
+            sw(card, "00A4020C02011C", "9000");
+            assertArrayEquals(hex("31143012060A04007F0007020204020202010202010D9000"), card.process(hex("00B0000000")));
+        }
+    }
+    @Test public void wrongLengthMasterFileReproducesTheCapturedDiscoverySequence() {
+        for (String format : new String[] {"TD1", "TD3"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
+            card.setSelectMFResponse(0x6700);
+            sw(card, "00A4040C07A0000002471001", "9000");
+            sw(card, "00A4020C02011C", "6A82");
+            sw(card, "00A4000C", "6700");
+            // MF rejection leaves the previously selected application usable.
+            sw(card, "00A4020C020101", "9000");
+            sw(card, "00B0000004", "6982");
+            sw(card, "00A4000C023F00", "6700");
+            sw(card, "00A4040C07A0000002471002", "6A82");
+        }
+    }
+    @Test public void wrongLengthMasterFilePersistsAcrossLinkLossAndCanBeRestored() {
+        TravelDocumentEmulator card = new TravelDocumentEmulator("TD3", "BAC");
+        card.setSelectMFResponse(0x6700);
+        card.deactivate();
+        sw(card, "00A4000C", "6700");
+        card.setSelectMFResponse(0x6A81);
+        sw(card, "00A4000C", "6A81");
+        card.setSelectMFResponse(0x9000);
+        sw(card, "00A4000C", "9000");
+        sw(card, "00A4000C023F00", "9000");
+    }
+    @Test public void wrongLengthMasterFileDoesNotAffectPACE() {
+        for (String format : new String[] {"TD1", "TD3"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, "PACE");
+            card.setSelectMFResponse(0x6700);
+            sw(card, "00A4000C", "9000");
+            sw(card, "00A4000C023F00", "9000");
+            sw(card, "00A4020C02011C", "9000");
+            assertArrayEquals(hex("31143012060A04007F0007020204020202010202010D9000"), card.process(hex("00B0000000")));
+        }
+    }
+    @Test public void invalidMasterFileResponseDoesNotChangeTheActiveScenario() {
+        TravelDocumentEmulator card = new TravelDocumentEmulator("TD3", "BAC");
+        card.setSelectMFResponse(0x6700);
+        try { card.setSelectMFResponse(0x6988); fail("Unsupported fixture status accepted"); }
+        catch (IllegalArgumentException expected) { }
+        sw(card, "00A4000C", "6700");
+    }
+    @Test public void bacAuthenticationStillWorksAfterRejectedMasterFileSelection() throws Exception {
+        for (int rejection : new int[] {0x6A81, 0x6700}) for (String format : new String[] {"TD1", "TD3"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
+            card.setSelectMFResponse(rejection);
+            sw(card, "00A4040C07A0000002471001", "9000");
+            sw(card, "00A4000C023F00", Integer.toHexString(rejection));
+            sw(card, "00A4000C", Integer.toHexString(rejection));
+            String mrz = (format.equals("TD1") ? "D231458907" : "L898902C36") + "7408122" + "1204159";
+            byte[] seed = slice(sha1(mrz.getBytes(java.nio.charset.StandardCharsets.US_ASCII)), 0, 16);
+            byte[] enc = kdf(seed, 1, true), macKey = kdf(seed, 2, true);
+            byte[] challenge = card.process(hex("0084000008"));
+            assertEquals(10, challenge.length);
+            assertArrayEquals(hex("9000"), slice(challenge, 8, 10));
+            byte[] rndICC = slice(challenge, 0, 8), rndIFD = hex("0102030405060708");
+            byte[] keyIFD = hex("000102030405060708090A0B0C0D0E0F");
+            byte[] encrypted = crypt(true, false, enc, new byte[8], concat(rndIFD, rndICC, keyIFD));
+            byte[] response = card.process(concat(hex("0082000028"), encrypted, mac(false, macKey, pad(encrypted, 8)), hex("28")));
+            assertEquals(42, response.length);
+            assertArrayEquals(hex("9000"), slice(response, 40, 42));
+            assertArrayEquals(mac(false, macKey, pad(slice(response, 0, 32), 8)), slice(response, 32, 40));
+            byte[] plain = crypt(false, false, enc, new byte[8], slice(response, 0, 32));
+            assertArrayEquals(concat(rndICC, rndIFD), slice(plain, 0, 16));
+            assertEquals("BAC authenticated", card.getStatus());
+        }
+    }
     @Test public void fixtureFilesCannotBeReadBeforeAuthentication() {
         for (String mode : new String[] {"BAC", "PACE"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator("TD1", mode);
@@ -39,6 +135,21 @@ public class TravelDocumentEmulatorTest {
             sw(card, "00B0810004", "6982");
             sw(card, "00B0820004", "6982");
             sw(card, "00B09D0004", "6982");
+        }
+    }
+    @Test public void optionalBiometricFilesRequireAuthenticationInEveryFixture() {
+        for (String format : new String[] {"TD1", "TD3"}) for (String mode : new String[] {"BAC", "PACE"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator(format, mode, "Valid", false, false, false, true);
+            sw(card, "00A4040C07A0000002471001", "9000");
+            for (String fid : new String[] {"0103", "0104"}) { sw(card, "00A4020C02" + fid, "9000"); sw(card, "00B0000004", "6982"); }
+            sw(card, "00B0830004", "6982"); sw(card, "00B0840004", "6982");
+        }
+    }
+    @Test public void biometricFilesAreAbsentWhenTheirOptionIsOff() {
+        for (String mode : new String[] {"BAC", "PACE"}) {
+            TravelDocumentEmulator card = new TravelDocumentEmulator("TD3", mode);
+            sw(card, "00A4040C07A0000002471001", "9000"); sw(card, "00A4020C020103", "6A82"); sw(card, "00A4020C020104", "6A82");
+            sw(card, "00B0830004", "6A82"); sw(card, "00B0840004", "6A82");
         }
     }
     @Test public void noBACDowngradeOnPACECard() {

@@ -55,6 +55,7 @@
     <string name="local_help">Choose TD1 or TD3 and BAC or PACE. Keep this app in the foreground with NFC enabled, then tap the reader phone. Enter the document number, birth date and expiry shown on this page in the reader.\n\nThese public test cards contain DG1 and a DG2 JPEG color test pattern. Turn on photo reading to display it. PACE uses ECDH-GM, BrainpoolP256r1 and AES-128; MRZ and CAN 123456 are supported.\n\nRemote Virtual Smart Card remains available in Settings.</string>
     <string name="fixture_format">Document format</string>
     <string name="fixture_authentication">Access control</string>
+    <string name="select_mf_response">SELECT MF response</string>
     <string name="reset_card">Reset card</string>
     <string name="exchanges">Exchanges</string>
     <string name="dg2_preview">DG2 test image preview</string>

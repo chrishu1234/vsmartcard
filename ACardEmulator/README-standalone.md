@@ -1,3 +1,62 @@
+DG3 / DG4 synthetic biometric fixture (2026-10-19)
+------------------------------------------------
+Version 9.0-0.11-dg3-dg4 (code 22) adds Biometric images (DG3 / DG4), off by
+default, in Local travel document mode. Each TD1/TD3 x BAC/PACE combination
+has two 96 x 96 synthetic finger images and two iris images, with labelled
+home-screen previews. GenerateBiometricFixtures.java uses unmodified JMRTD
+0.8.9 ISO 19794 writers and reads the records back before saving them.
+These are geometric development images, not real biometric data or templates.
+
+The switch adds DG3/DG4 to COM, file/SFI selection and every SOD variant.
+Changing it resets the card session, applying to the next APDU. Match the
+HarmonyOS Read biometric images switch. For full PA PASS, read photo and
+match the other optional groups too. Original bytes, image previews and
+metadata can then be compared between both phones.
+
+BAC/PACE still protects file reads. This fixture does not implement TA/EAC
+authorization, ISO 39794 DG3/DG4, biometric matching, or WSQ decoding.
+SOD regeneration replaced the public development CSCA: rebuild/install both
+apps together. CSCA/DSC private signing keys are not saved or bundled.
+Validation: Android JVM tests 27/27 and APK build successful; ArkTS reader
+against the actual APK Java engine passes 620/620 loopback scenarios, including
+DG3/DG4 bytes and SOD hashes across optional-file combinations. Both main apps
+were installed/launched for manual NFC testing; loopback does not test RF.
+The following entries retain earlier rounds' historical scope and results.
+
+Temporary SELECT MF wrong-length fixture (2026-10-19)
+---------------------------------------------------
+Version 8.2-0.11-mf6700-repro (code 21) replaces the old Reject checkbox with
+SELECT MF response: Normal (9000), Reject (6A81), or Wrong length (6700).
+The selector is visible only in Local travel document / BAC mode. Existing
+6A81 preferences are retained; a fresh installation defaults to Normal.
+Changing the selection resets the card session and applies to the next APDU.
+Keep the phones apart while changing scenarios. PACE retains normal behavior.
+
+To reproduce the captured real-document failure, choose TD3 / BAC, PA Valid,
+and Wrong length (6700). On HarmonyOS, use L898902C3 / 740812 / 120415 with
+APDU diagnostics enabled. The unchanged reader should send application SELECT
+(9000), CardAccess SELECT (6A82), then SELECT MF 00A4000C (6700) and stop.
+MF rejection also applies to the explicit 3F00 form, without altering selection
+state; BAC and all document files remain available. Choose Normal (9000) for
+the positive comparison. This change does not fix the HarmonyOS reader.
+
+Earlier SELECT MF rejection fixture (2026-10-19)
+------------------------------------------------
+Version 8.1-0.11-mf6a81-repro (code 20) adds a temporary home-screen checkbox,
+Reject SELECT MF (6A81), visible only in Local travel document / BAC mode and
+off by default. It rejects both 00 A4 00 0C and 00 A4 00 0C 02 3F 00 with
+6A81 before changing the selected application/file. BAC authentication and
+the fixture files remain available. PACE ignores the flag and retains normal
+CardAccess access. Turning it off restores the original card behavior.
+
+Manual reproduction: choose TD3 / BAC, PA Valid, check Reject SELECT MF (6A81),
+and keep the Android app in the foreground. On the unchanged HarmonyOS reader,
+use L898902C3 / 740812 / 120415 and start reading. Expected failure:
+Select MF for EF.CardAccess failed (SW = 0x6A81). The Android Exchanges log
+should show C-APDU 00A4000C023F00 and R-APDU 6A81. Uncheck for a normal BAC
+comparison. This round changes only the APK; the HarmonyOS reader is not fixed.
+Remove the temporary UI after the user's reproduction/repair verification.
+
 AA / CA card-side implementation (2026-10-18)
 --------------------------------------------
 Version 8.0-0.11-chip-auth (code 19) adds live AA and CA handlers in Local travel

@@ -23,6 +23,13 @@
                         android:layout_width="match_parent" android:layout_height="48dp" />
                 </LinearLayout>
             </LinearLayout>
+            <LinearLayout android:id="@+id/selectMFControls" android:orientation="vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:visibility="gone">
+                <TextView android:text="@string/select_mf_response" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                <Spinner android:id="@+id/selectMFResponse" android:contentDescription="@string/select_mf_response"
+                    android:layout_width="match_parent" android:layout_height="48dp" />
+            </LinearLayout>
             <LinearLayout android:id="@+id/paControls" android:orientation="vertical" android:paddingStart="16dp" android:paddingEnd="16dp"
                 android:layout_width="match_parent" android:layout_height="wrap_content">
                 <TextView android:text="Passive authentication · test CSCA" android:layout_width="match_parent" android:layout_height="wrap_content" />
@@ -31,6 +38,8 @@
             </LinearLayout>
             <CheckBox android:id="@+id/displayedImages" android:text="Additional images (DG5 / DG7)"
                 android:paddingStart="12dp" android:layout_width="match_parent" android:layout_height="48dp" />
+            <CheckBox android:id="@+id/biometricFiles" android:text="Biometric images (DG3 / DG4)"
+                android:paddingStart="16dp" android:layout_width="match_parent" android:layout_height="48dp" />
             <CheckBox android:id="@+id/additionalDetails" android:text="Additional details (DG11 / DG12)"
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" />
             <CheckBox android:id="@+id/securityFiles" android:text="Security information (DG14 / DG15)"
@@ -50,6 +59,20 @@
             <TextView android:id="@+id/additionalDetailsPreview" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:padding="16dp" android:textSize="14sp"
                 android:lineSpacingExtra="2dp" android:textIsSelectable="true" android:visibility="gone" />
+            <LinearLayout android:id="@+id/biometricPreviews" android:orientation="vertical" android:padding="16dp"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:visibility="gone">
+                <TextView android:text="DG3 · Right index / Left index" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <ImageView android:id="@+id/fingerRightPreview" android:contentDescription="Synthetic right index fingerprint" android:layout_width="112dp" android:layout_height="112dp" android:scaleType="fitCenter" />
+                    <ImageView android:id="@+id/fingerLeftPreview" android:contentDescription="Synthetic left index fingerprint" android:layout_width="112dp" android:layout_height="112dp" android:scaleType="fitCenter" />
+                </LinearLayout>
+                <TextView android:text="DG4 · Right eye / Left eye" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                <LinearLayout android:orientation="horizontal" android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <ImageView android:id="@+id/irisRightPreview" android:contentDescription="Synthetic right iris" android:layout_width="112dp" android:layout_height="112dp" android:scaleType="fitCenter" />
+                    <ImageView android:id="@+id/irisLeftPreview" android:contentDescription="Synthetic left iris" android:layout_width="112dp" android:layout_height="112dp" android:scaleType="fitCenter" />
+                </LinearLayout>
+                <TextView android:id="@+id/biometricPreviewInfo" android:textIsSelectable="true" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" />
+            </LinearLayout>
             <LinearLayout android:id="@+id/chipControls" android:orientation="horizontal"
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
                 <TextView android:text="Chip test" android:layout_width="wrap_content" android:layout_height="wrap_content" />
