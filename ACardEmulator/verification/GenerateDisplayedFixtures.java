@@ -11,7 +11,7 @@ import org.jmrtd.lds.icao.*;
 public final class GenerateDisplayedFixtures {
   public static void main(String[] args)throws Exception {
     Path root=Paths.get(args[0]);
-    for(String format:new String[]{"td1","td3"})for(String auth:new String[]{"bac","pace"})for(int number:new int[]{5,7}){
+    for(String format:new String[]{"td1","td3","td2"})for(String auth:new String[]{"bac","pace"})for(int number:new int[]{5,7}){
       String id=format+"-"+auth; BufferedImage image=new BufferedImage(number==5?160:240,number==5?120:80,BufferedImage.TYPE_INT_RGB);
       Graphics2D g=image.createGraphics();g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
       g.setColor(number==5?new Color(0x31546D):Color.WHITE);g.fillRect(0,0,image.getWidth(),image.getHeight());

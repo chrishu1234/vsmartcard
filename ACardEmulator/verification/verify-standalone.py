@@ -8,8 +8,9 @@ import json
 import hashlib
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--chip-only', action='store_true', help='Run the 24 full AA/CA scenarios with all optional groups.')
-parser.add_argument('--regenerate-photos', action='store_true', help='Regenerate all four labeled JPEG, DG2 and preview fixtures.')
+parser.add_argument('--format', choices=['TD1','TD2','TD3'], help='Run only this format in the original Java reader matrix.')
+parser.add_argument('--chip-only', action='store_true', help='Run the chip-enabled AA/CA scenarios with displayed/details/security groups.')
+parser.add_argument('--regenerate-photos', action='store_true', help='Regenerate all six labeled JPEG, DG2 and preview fixtures.')
 parser.add_argument('--regenerate-sod', action='store_true', help='Generate new test certificates and SODs; then resync HarmonyOS PA fixtures.')
 parser.add_argument('--generate-fixtures-only', action='store_true', help='Generate requested fixtures without running the reader matrix.')
 args = parser.parse_args()
@@ -41,9 +42,10 @@ subprocess.run([JAVAC, '-cp', old_bc, '-d', str(CLASSES), str(sources / 'Emulato
                 *map(str, (sources / 'mrtd').glob('*.java')), str(ROOT / 'verification/StandaloneCardServer.java')], check=True)
 oracle_cp = os.pathsep.join([str(CLASSES), *oracle_jars])
 if args.regenerate_photos:
-    subprocess.run([JAVAC, '-cp', oracle_cp, '-d', str(CLASSES), str(ROOT / 'verification/GenerateDG2Fixture.java'), str(ROOT / 'verification/GenerateDG2Fixtures.java'), str(ROOT / 'verification/GenerateDisplayedFixtures.java')], check=True)
+    subprocess.run([JAVAC, '-cp', oracle_cp, '-d', str(CLASSES), str(ROOT / 'verification/GenerateDG2Fixture.java'), str(ROOT / 'verification/GenerateDG2Fixtures.java'), str(ROOT / 'verification/GenerateDisplayedFixtures.java'), str(ROOT / 'verification/GenerateBiometricFixtures.java')], check=True)
     subprocess.run([JAVA, '-Djava.awt.headless=true', '-cp', oracle_cp, 'GenerateDG2Fixtures', str(ROOT)], check=True)
     subprocess.run([JAVA, '-Djava.awt.headless=true', '-cp', oracle_cp, 'GenerateDisplayedFixtures', str(ROOT)], check=True)
+    subprocess.run([JAVA, '-Djava.awt.headless=true', '-cp', oracle_cp, 'GenerateBiometricFixtures', str(ROOT)], check=True, stdout=subprocess.DEVNULL)
 if args.regenerate_sod or args.regenerate_photos:
     # DG14 writers in the published 0.8.9 artifact call ASN1Integer(int), added in BC 1.86.
     security_cp=os.pathsep.join([str(CLASSES),*oracle_jars[:2],artifact('org.bouncycastle/bcprov-jdk18on/1.86','bcprov-jdk18on-1.86.jar'),artifact('org.bouncycastle/bcutil-jdk18on/1.86','bcutil-jdk18on-1.86.jar')])
@@ -57,8 +59,8 @@ if args.generate_fixtures_only:
     if not (args.regenerate_sod or args.regenerate_photos): parser.error('--generate-fixtures-only requires a regeneration flag')
     raise SystemExit(0)
 photo_manifest = json.loads((ROOT / 'verification/fixtures/photo.json').read_text(encoding='utf-8'))
-assert len(photo_manifest['fixtures']) == 4
-assert len({photo['jpegSHA256'] for photo in photo_manifest['fixtures']}) == 4, 'Photo fixtures must differ'
+assert len(photo_manifest['fixtures']) == 6
+assert len({photo['jpegSHA256'] for photo in photo_manifest['fixtures']}) == 6, 'Photo fixtures must differ'
 for photo in photo_manifest['fixtures']:
     name = photo['id']
     jpeg = (ROOT / f'verification/fixtures/photo-{name}.jpg').read_bytes()
@@ -71,7 +73,7 @@ passed = 0
 for security in ((True,) if args.chip_only else (False, True)):
     for details in ((True,) if args.chip_only else (False, True)):
         for displayed in ((True,) if args.chip_only else (False, True)):
-            for format_name in ('TD1', 'TD3'):
+            for format_name in ((args.format,) if args.format else ('TD1', 'TD2', 'TD3')):
                 for mode, key, pa in [(mode, key, pa) for mode, key in (('BAC', 'MRZ'), ('PACE', 'MRZ'), ('PACE', 'CAN'))
                                       for pa in ('Valid', 'Altered DG1', 'Bad signature', 'Untrusted CSCA')]:
                     server = subprocess.Popen([JAVA, '-cp', os.pathsep.join([str(CLASSES), str(ROOT / 'app/src/main/resources'), old_bc]), 'StandaloneCardServer', format_name, mode, pa, 'displayed' if displayed else 'plain', 'details' if details else 'plain', 'security' if security else 'plain'],

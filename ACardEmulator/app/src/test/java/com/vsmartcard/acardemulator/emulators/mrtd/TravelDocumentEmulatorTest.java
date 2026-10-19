@@ -21,7 +21,7 @@ public class TravelDocumentEmulatorTest {
         assertArrayEquals(hex("89DED1B26624EC1E634C1989302849DD"), kdf(seed, 3, false));
     }
     @Test public void cardAccessOnlyAdvertisedForPACE() {
-        for (String format : new String[] {"TD1", "TD3"}) for (String mode : new String[] {"BAC", "PACE"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) for (String mode : new String[] {"BAC", "PACE"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, mode);
             sw(card, "00A4000C023F00", "9000");
             sw(card, "00A4020C02011C", mode.equals("PACE") ? "9000" : "6A82");
@@ -29,7 +29,7 @@ public class TravelDocumentEmulatorTest {
         }
     }
     @Test public void rejectedMasterFileSelectionIsOptionalAndDoesNotChangeOtherSelections() {
-        for (String format : new String[] {"TD1", "TD3"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
             sw(card, "00A4000C", "9000");
             sw(card, "00A4000C023F00", "9000");
@@ -48,7 +48,7 @@ public class TravelDocumentEmulatorTest {
         }
     }
     @Test public void rejectedMasterFileFixtureDoesNotAffectPACE() {
-        for (String format : new String[] {"TD1", "TD3"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, "PACE");
             card.setRejectSelectMF(true);
             sw(card, "00A4000C", "9000");
@@ -58,7 +58,7 @@ public class TravelDocumentEmulatorTest {
         }
     }
     @Test public void wrongLengthMasterFileReproducesTheCapturedDiscoverySequence() {
-        for (String format : new String[] {"TD1", "TD3"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
             card.setSelectMFResponse(0x6700);
             sw(card, "00A4040C07A0000002471001", "9000");
@@ -83,7 +83,7 @@ public class TravelDocumentEmulatorTest {
         sw(card, "00A4000C023F00", "9000");
     }
     @Test public void wrongLengthMasterFileDoesNotAffectPACE() {
-        for (String format : new String[] {"TD1", "TD3"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, "PACE");
             card.setSelectMFResponse(0x6700);
             sw(card, "00A4000C", "9000");
@@ -100,13 +100,13 @@ public class TravelDocumentEmulatorTest {
         sw(card, "00A4000C", "6700");
     }
     @Test public void bacAuthenticationStillWorksAfterRejectedMasterFileSelection() throws Exception {
-        for (int rejection : new int[] {0x6A81, 0x6700}) for (String format : new String[] {"TD1", "TD3"}) {
+        for (int rejection : new int[] {0x6A81, 0x6700}) for (String format : new String[] {"TD1", "TD2", "TD3"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, "BAC");
             card.setSelectMFResponse(rejection);
             sw(card, "00A4040C07A0000002471001", "9000");
             sw(card, "00A4000C023F00", Integer.toHexString(rejection));
             sw(card, "00A4000C", Integer.toHexString(rejection));
-            String mrz = (format.equals("TD1") ? "D231458907" : "L898902C36") + "7408122" + "1204159";
+            String mrz = (format.equals("TD3") ? "L898902C36" : "D231458907") + "7408122" + "1204159";
             byte[] seed = slice(sha1(mrz.getBytes(java.nio.charset.StandardCharsets.US_ASCII)), 0, 16);
             byte[] enc = kdf(seed, 1, true), macKey = kdf(seed, 2, true);
             byte[] challenge = card.process(hex("0084000008"));
@@ -138,7 +138,7 @@ public class TravelDocumentEmulatorTest {
         }
     }
     @Test public void optionalBiometricFilesRequireAuthenticationInEveryFixture() {
-        for (String format : new String[] {"TD1", "TD3"}) for (String mode : new String[] {"BAC", "PACE"}) {
+        for (String format : new String[] {"TD1", "TD2", "TD3"}) for (String mode : new String[] {"BAC", "PACE"}) {
             TravelDocumentEmulator card = new TravelDocumentEmulator(format, mode, "Valid", false, false, false, true);
             sw(card, "00A4040C07A0000002471001", "9000");
             for (String fid : new String[] {"0103", "0104"}) { sw(card, "00A4020C02" + fid, "9000"); sw(card, "00B0000004", "6982"); }

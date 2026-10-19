@@ -13,7 +13,8 @@ public final class GenerateSecurityFixtures {
   static String x(byte[] b){return HexFormat.of().withUpperCase().formatHex(b);}
   public static void main(String[] args)throws Exception {
     Security.addProvider(Util.getBouncyCastleProvider()); Path out=Paths.get(args[0]).resolve("app/src/main/resources/mrtd");
-    for(String format:new String[]{"td1","td3"})for(String auth:new String[]{"bac","pace"}){
+    for(String format:new String[]{"td1","td3","td2"})for(String auth:new String[]{"bac","pace"}){
+      if(args.length>1 && !format.equals(args[1]))continue;
       String id=format+"-"+auth;boolean rsa=format.equals("td1");
       SecureRandom random=SecureRandom.getInstance("SHA1PRNG");random.setSeed(("JMRTD-0.8.9-public-fixture-"+id).getBytes(StandardCharsets.US_ASCII));
       KeyPairGenerator aa=KeyPairGenerator.getInstance(rsa?"RSA":"EC",Util.getBouncyCastleProvider());

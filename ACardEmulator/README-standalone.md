@@ -1,3 +1,27 @@
+TD2 independent fixture (2026-10-19)
+----------------------------------
+Version 9.1-0.11-td2 (code 23) adds TD2 to the document selector. TD2 has a
+72-character MRZ generated with unmodified JMRTD 0.8.9, BAC/PACE, unique photo
+and image previews, all current optional files and sixteen SOD combinations.
+MRZ input: D23145890 / 740812 / 120415. PACE CAN remains 123456.
+TD2 uses the EC AA / ECDH CA fixture profile. PA/chip negative controls remain
+available. No authentication protocol was replaced to add this format.
+
+MainActivity resolves previews by the selected fixture ID, so TD2 never falls
+back to TD3 images. DG1 is now served from the exact original-Java encoded
+fixture; Altered DG1 mutates only the synthetic surname bytes. TD1/TD3 inputs
+remain unchanged. Both APK/HAP must be updated after test SOD/root regeneration.
+Generate/verify with verification/verify-standalone.py; --format TD2 limits
+the original Java client regression to TD2. DG6 is reserved and has no new card
+fixture; the HarmonyOS library provides its upstream stream model and tests.
+
+Validation: original JMRTD 0.8.9 reader passes 96/96 TD2 scenarios, including
+BAC, PACE-MRZ/CAN, DG5/DG7, DG11/DG12, DG14/DG15 combinations and PA
+negative controls. Android JVM
+tests 27/27; ArkTS AA/CA positive/negative matrix 42/42 across all three formats
+and biometric flag states. Full ArkTS/APK-engine loopback: 930/930.
+Updated main apps installed/launched for manual NFC.
+
 DG3 / DG4 synthetic biometric fixture (2026-10-19)
 ------------------------------------------------
 Version 9.0-0.11-dg3-dg4 (code 22) adds Biometric images (DG3 / DG4), off by

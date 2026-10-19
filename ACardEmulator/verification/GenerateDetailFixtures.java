@@ -9,7 +9,7 @@ public final class GenerateDetailFixtures {
   public static void main(String[] args)throws Exception {
     Path root=Paths.get(args[0]),out=root.resolve("app/src/main/resources/mrtd");
     boolean previewOnly=args.length>1 && args[1].equals("--preview-only");
-    for(String format:new String[]{"td1","td3"})for(String auth:new String[]{"bac","pace"}){
+    for(String format:new String[]{"td1","td3","td2"})for(String auth:new String[]{"bac","pace"}){
       String id=format+"-"+auth;boolean full=format.equals("td1");
       byte[] front=Files.readAllBytes(root.resolve("verification/fixtures/dg5-"+id+".jpg").normalize());
       byte[] rear=Files.readAllBytes(root.resolve("verification/fixtures/dg7-"+id+".jpg").normalize());

@@ -1,0 +1,7 @@
+DG3 / DG4 - SYNTHETIC TEST IMAGES
+TD2-BAC
+DG3: Right index / Left index, quality 80 / 90
+96 x 96, JPEG, 500 ppi, 8-bit
+DG4: Right eye / Left eye, quality undefined
+96 x 96, JPEG, 8-bit
+DG3 bytes: 6109; DG4 bytes: 4399

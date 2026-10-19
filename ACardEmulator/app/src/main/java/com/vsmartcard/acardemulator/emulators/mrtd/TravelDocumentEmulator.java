@@ -68,7 +68,7 @@ public final class TravelDocumentEmulator implements Emulator {
         this(format, authentication, paScenario, displayedImages, additionalDetails, securityFiles, false);
     }
     public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles, boolean biometricFiles) {
-        if (!(format.equals("TD1") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
+        if (!(format.equals("TD1") || format.equals("TD2") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
         if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA"))) throw new IllegalArgumentException("Unsupported PA scenario");
         pace = authentication.equals("PACE");
         this.displayedImages = displayedImages;
@@ -92,11 +92,14 @@ public final class TravelDocumentEmulator implements Emulator {
                 tlv(0x5C, hex("6175" + (biometricFiles ? "6376" : "") + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
         String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "") + (biometricFiles ? "biometric-" : "");
         sod = loadFixture(sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture, 0x77);
-        String mrz = format.equals("TD1")
-                ? "I<UTOD231458907<<<<<<<<<<<<<<<" + "7408122F1204159UTO<<<<<<<<<<<6" + "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"
-                : "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<" + "L898902C36UTO7408122F1204159ZE184226B<<<<<10";
-        dg1 = tlv(0x61, tlv(0x5F1F, ascii(paScenario.equals("Altered DG1") ? mrz.replace("ERIKSSON", "XRIKSSON") : mrz)));
-        mrzInformation = ascii((format.equals("TD1") ? "D231458907" : "L898902C36") + "7408122" + "1204159");
+        dg1 = loadFixture("dg1-" + fixture, 0x61);
+        if (paScenario.equals("Altered DG1")) {
+            byte[] name = ascii("ERIKSSON");
+            for (int i=0;i<=dg1.length-name.length;i++) {
+                if (equal(slice(dg1,i,i+name.length),name)) { dg1[i]='X'; break; }
+            }
+        }
+        mrzInformation = ascii((format.equals("TD3") ? "L898902C36" : "D231458907") + "7408122" + "1204159");
     }
     /** Optional synthetic negative cases, independent from PA scenarios. */
     public synchronized void setChipScenario(String scenario) {

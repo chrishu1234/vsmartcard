@@ -55,10 +55,12 @@ public final class GenerateSODFixtures {
         put(out.resolve("test-csca.der"), csca.getEncoded());
         put(vectors.resolve("test-csca.der"), csca.getEncoded());
         put(vectors.resolve("untrusted-csca.der"), alienRoot.getEncoded());
-        for (String format : new String[]{"td1", "td3"}) for (String auth : new String[]{"bac", "pace"}) {
+        for (String format : new String[]{"td1", "td3", "td2"}) for (String auth : new String[]{"bac", "pace"}) {
             String id = format + "-" + auth;
             String mrz = format.equals("td1") ? "I<UTOD231458907<<<<<<<<<<<<<<<7408122F1204159UTO<<<<<<<<<<<6ERIKSSON<<ANNA<MARIA<<<<<<<<<<" : "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10";
-            byte[] dg1 = new DG1File(new MRZInfo(mrz)).getEncoded(), dg2 = Files.readAllBytes(out.resolve("dg2-" + id + ".bin"));
+            MRZInfo info = format.equals("td2") ? MRZInfo.createTD2MRZInfo("I<", "UTO", "ERIKSSON", "ANNA<MARIA", "D23145890", "UTO", "740812", net.sf.scuba.data.Gender.FEMALE, "120415", "") : new MRZInfo(mrz);
+            byte[] dg1 = new DG1File(info).getEncoded(), dg2 = Files.readAllBytes(out.resolve("dg2-" + id + ".bin"));
+            put(out.resolve("dg1-"+id+".bin"), dg1);
             Map<Integer,byte[]> hashes = new TreeMap<>();
             hashes.put(1, MessageDigest.getInstance("SHA-256").digest(dg1)); hashes.put(2, MessageDigest.getInstance("SHA-256").digest(dg2));
             byte[] sod = new SODFile("SHA-256", "SHA256withRSA", hashes, ds.getPrivate(), dsc).getEncoded();
@@ -87,6 +89,6 @@ public final class GenerateSODFixtures {
                 for(String suffix:new String[]{"","bad-signature-","untrusted-"}) put(vectors.resolve(prefix+suffix+id+".bin"),Files.readAllBytes(out.resolve(prefix+suffix+id+".bin")));
             }
         }
-        System.out.println("Generated four SOD fixtures, invalid-signature/untrusted variants and public test CSCA. No private keys saved.");
+        System.out.println("Generated six SOD fixture sets, invalid-signature/untrusted variants and public test CSCA. No private keys saved.");
     }
 }

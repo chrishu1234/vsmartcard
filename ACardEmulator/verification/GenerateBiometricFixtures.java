@@ -26,7 +26,7 @@ public final class GenerateBiometricFixtures {
   public static void main(String[] args)throws Exception {
     Path root=Paths.get(args[0]),out=root.resolve("app/src/main/resources/mrtd"),preview=root.resolve("app/src/main/res/drawable-nodpi");
     for(Class<?> type:new Class<?>[]{FingerInfo.class,FingerImageInfo.class,IrisInfo.class,IrisBiometricSubtypeInfo.class,IrisImageInfo.class})for(java.lang.reflect.Field field:type.getDeclaredFields())if(java.lang.reflect.Modifier.isPublic(field.getModifiers())&&java.lang.reflect.Modifier.isStatic(field.getModifiers())&&field.getType()==int.class)System.out.println("constant|"+type.getSimpleName()+"|"+field.getName()+"|"+field.getInt(null));
-    for(String format:new String[]{"td1","td3"})for(String auth:new String[]{"bac","pace"}){
+    for(String format:new String[]{"td1","td3","td2"})for(String auth:new String[]{"bac","pace"}){
       String id=format+"-"+auth;java.util.List<FingerImageInfo> fingers=new ArrayList<>();java.util.List<IrisBiometricSubtypeInfo> eyes=new ArrayList<>();Map<String,String> v=new LinkedHashMap<>();v.put("id",id);
       for(int side=0;side<2;side++){
         byte[] finger=jpeg(id,3,side),iris=jpeg(id,4,side);v.put("fingerImage"+side,hex(finger));v.put("irisImage"+side,hex(iris));

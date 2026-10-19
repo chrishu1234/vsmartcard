@@ -17,11 +17,11 @@ public final class GenerateDG2Fixtures {
     public static void main(String[] args) throws Exception {
         if (args.length != 1) throw new IllegalArgumentException("Usage: GenerateDG2Fixtures ACardEmulator-directory");
         Path root = Paths.get(args[0]);
-        String[] formats = {"TD1", "TD1", "TD3", "TD3"};
-        String[] methods = {"BAC", "PACE", "BAC", "PACE"};
-        String[] colors = {"#2563EB", "#059669", "#D97706", "#7C3AED"};
+        String[] formats = {"TD1", "TD1", "TD3", "TD3", "TD2", "TD2"};
+        String[] methods = {"BAC", "PACE", "BAC", "PACE", "BAC", "PACE"};
+        String[] colors = {"#2563EB", "#059669", "#D97706", "#7C3AED", "#BE185D", "#0E7490"};
         StringBuilder manifest = new StringBuilder("{\n  \"description\": \"Synthetic labeled JPEG test cards; no personal or biometric image.\",\n  \"generator\": \"GenerateDG2Fixtures.java + GenerateDG2Fixture.java with JMRTD 0.8.9\",\n  \"width\": 160,\n  \"height\": 120,\n  \"fixtures\": [\n");
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < formats.length; i++) {
             String name = formats[i].toLowerCase(java.util.Locale.ROOT) + "-" + methods[i].toLowerCase(java.util.Locale.ROOT);
             BufferedImage image = new BufferedImage(160, 120, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = image.createGraphics();
@@ -45,7 +45,7 @@ public final class GenerateDG2Fixtures {
             if (Files.size(dg2) > 8192) throw new IOException("Fixture exceeds card resource bound");
             manifest.append(String.format(java.util.Locale.ROOT,
                 "    {\"id\":\"%s\",\"format\":\"%s\",\"authentication\":\"%s\",\"color\":\"%s\",\"jpegBytes\":%d,\"dg2Bytes\":%d,\"jpegSHA256\":\"%s\",\"dg2SHA256\":\"%s\"}%s\n",
-                name, formats[i], methods[i], colors[i], Files.size(jpeg), Files.size(dg2), digest(jpeg), digest(dg2), i == 3 ? "" : ","));
+                name, formats[i], methods[i], colors[i], Files.size(jpeg), Files.size(dg2), digest(jpeg), digest(dg2), i == formats.length - 1 ? "" : ","));
             System.out.println(name + " " + colors[i] + " " + digest(jpeg));
         }
         manifest.append("  ]\n}\n");

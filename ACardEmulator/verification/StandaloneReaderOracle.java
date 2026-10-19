@@ -95,7 +95,7 @@ public final class StandaloneReaderOracle {
         boolean displayed = args.length > 7 && args[7].equals("displayed");
         boolean details = args.length > 8 && args[8].equals("details");
         boolean security = args.length > 9 && args[9].equals("security");
-        String document = format.equals("TD1") ? "D23145890" : "L898902C3";
+        String document = format.equals("TD3") ? "L898902C3" : "D23145890";
         try {
             // A wrong MRZ/CAN must be rejected, and a subsequent valid attempt must recover.
             boolean refused = false;
@@ -113,7 +113,7 @@ public final class StandaloneReaderOracle {
             byte[] dg1Bytes = file(card, wrapper, 0x0101);
             MRZInfo mrz = new DG1File(new ByteArrayInputStream(dg1Bytes)).getMRZInfo();
             check(mrz.getDocumentNumber().equals(document) && mrz.getDateOfBirth().equals("740812") && mrz.getDateOfExpiry().equals("120415"), "MRZ mismatch");
-            check(mrz.getPrimaryIdentifier().equals(paScenario.equals("Altered DG1") ? "XRIKSSON" : "ERIKSSON") && mrz.getDocumentCode().startsWith(format.equals("TD1") ? "I" : "P"), "Wrong document format");
+            check(mrz.getPrimaryIdentifier().equals(paScenario.equals("Altered DG1") ? "XRIKSSON" : "ERIKSSON") && mrz.getDocumentCode().startsWith(format.equals("TD3") ? "P" : "I"), "Wrong document format");
             byte[] dg2Bytes = file(card, wrapper, 0x0102);
             DG2File dg2 = new DG2File(new ByteArrayInputStream(dg2Bytes));
             check(dg2.getFaceInfos().size() == 1 && dg2.getFaceInfos().get(0).getFaceImageInfos().size() == 1, "DG2 image count");

@@ -142,7 +142,7 @@ public class MainActivity extends AppCompatActivity {
 
         textViewVPCDStatus = findViewById(R.id.textViewLog);
         cardStatus = findViewById(R.id.textViewCardStatus);
-        setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD3"}, "TD1");
+        setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD2", "TD3"}, "TD1");
         setupSelector(R.id.authenticationMode, "mrtd_auth", new String[] {"BAC", "PACE"}, "PACE");
         setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA"}, "Valid");
         setupSelector(R.id.chipScenario, "mrtd_chip", new String[] {"Valid", "Bad AA signature", "Wrong CA key"}, "Valid");
@@ -225,35 +225,38 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.securityFiles).setVisibility(local ? View.VISIBLE : View.GONE);
         boolean displayed = preferences.getBoolean("mrtd_displayed", false);
         findViewById(R.id.displayedPreviews).setVisibility(local && displayed ? View.VISIBLE : View.GONE);
-        boolean td1 = preferences.getString("mrtd_format", "TD1").equals("TD1");
+        String format = preferences.getString("mrtd_format", "TD1");
+        boolean td1 = format.equals("TD1");
+        String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + preferences.getString("mrtd_auth", "PACE").toLowerCase(java.util.Locale.ROOT);
+        String resource = fixture.replace('-', '_');
         boolean pace = preferences.getString("mrtd_auth", "PACE").equals("PACE");
-        ((ImageView) findViewById(R.id.fingerRightPreview)).setImageResource(td1 ? (pace ? R.drawable.dg3_td1_pace_0 : R.drawable.dg3_td1_bac_0) : (pace ? R.drawable.dg3_td3_pace_0 : R.drawable.dg3_td3_bac_0));
-        ((ImageView) findViewById(R.id.fingerLeftPreview)).setImageResource(td1 ? (pace ? R.drawable.dg3_td1_pace_1 : R.drawable.dg3_td1_bac_1) : (pace ? R.drawable.dg3_td3_pace_1 : R.drawable.dg3_td3_bac_1));
-        ((ImageView) findViewById(R.id.irisRightPreview)).setImageResource(td1 ? (pace ? R.drawable.dg4_td1_pace_0 : R.drawable.dg4_td1_bac_0) : (pace ? R.drawable.dg4_td3_pace_0 : R.drawable.dg4_td3_bac_0));
-        ((ImageView) findViewById(R.id.irisLeftPreview)).setImageResource(td1 ? (pace ? R.drawable.dg4_td1_pace_1 : R.drawable.dg4_td1_bac_1) : (pace ? R.drawable.dg4_td3_pace_1 : R.drawable.dg4_td3_bac_1));
-        ((TextView) findViewById(R.id.biometricPreviewInfo)).setText(biometrics ? loadDetailPreview("biometric", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
+        setFixturePreview(R.id.fingerRightPreview, "dg3_" + resource + "_0");
+        setFixturePreview(R.id.fingerLeftPreview, "dg3_" + resource + "_1");
+        setFixturePreview(R.id.irisRightPreview, "dg4_" + resource + "_0");
+        setFixturePreview(R.id.irisLeftPreview, "dg4_" + resource + "_1");
+        ((TextView) findViewById(R.id.biometricPreviewInfo)).setText(biometrics ? loadDetailPreview("biometric", fixture) : "");
         findViewById(R.id.selectMFControls).setVisibility(local && !pace ? View.VISIBLE : View.GONE);
         TextView detailPreview = findViewById(R.id.additionalDetailsPreview);
         boolean showDetails = local && preferences.getBoolean("mrtd_details", false);
         detailPreview.setVisibility(showDetails ? View.VISIBLE : View.GONE);
-        detailPreview.setText(showDetails ? loadDetailPreview("details", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")) : "");
+        detailPreview.setText(showDetails ? loadDetailPreview("details", fixture) : "");
         TextView securityPreview = findViewById(R.id.securityFilesPreview);
         boolean showSecurity = local && preferences.getBoolean("mrtd_security", false);
         securityPreview.setVisibility(showSecurity ? View.VISIBLE : View.GONE);
         findViewById(R.id.chipControls).setVisibility(showSecurity ? View.VISIBLE : View.GONE);
-        securityPreview.setText(showSecurity ? loadDetailPreview("security", (td1 ? "td1" : "td3") + "-" + (pace ? "pace" : "bac")).replace("AA: NOT_CHECKED", td1 ? "AA: RSA signing" : "AA: ECDSA signing").replace("CA: NOT_CHECKED", td1 ? "CA: DH / AES-128" : "CA: ECDH / AES-128") : "");
-        ((ImageView) findViewById(R.id.dg2Preview)).setImageResource(td1
-                ? (pace ? R.drawable.dg2_td1_pace : R.drawable.dg2_td1_bac)
-                : (pace ? R.drawable.dg2_td3_pace : R.drawable.dg2_td3_bac));
-        ((ImageView) findViewById(R.id.dg5Preview)).setImageResource(td1
-                ? (pace ? R.drawable.dg5_td1_pace : R.drawable.dg5_td1_bac)
-                : (pace ? R.drawable.dg5_td3_pace : R.drawable.dg5_td3_bac));
-        ((ImageView) findViewById(R.id.dg7Preview)).setImageResource(td1
-                ? (pace ? R.drawable.dg7_td1_pace : R.drawable.dg7_td1_bac)
-                : (pace ? R.drawable.dg7_td3_pace : R.drawable.dg7_td3_bac));
+        securityPreview.setText(showSecurity ? loadDetailPreview("security", fixture).replace("AA: NOT_CHECKED", td1 ? "AA: RSA signing" : "AA: ECDSA signing").replace("CA: NOT_CHECKED", td1 ? "CA: DH / AES-128" : "CA: ECDH / AES-128") : "");
+        setFixturePreview(R.id.dg2Preview, "dg2_" + resource);
+        setFixturePreview(R.id.dg5Preview, "dg5_" + resource);
+        setFixturePreview(R.id.dg7Preview, "dg7_" + resource);
         TextView details = findViewById(R.id.textViewCardDetails);
-        details.setText(local ? getString(R.string.fixture_details, preferences.getString("mrtd_format", "TD1").equals("TD1") ? "D23145890" : "L898902C3") : emulator);
+        details.setText(local ? getString(R.string.fixture_details, format.equals("TD3") ? "L898902C3" : "D23145890") : emulator);
         cardStatus.setText(local ? EmulatorSingleton.getStatus() : "Ready");
+    }
+
+    private void setFixturePreview(int viewId, String resourceName) {
+        int resourceId = getResources().getIdentifier(resourceName, "drawable", getPackageName());
+        if (resourceId == 0) throw new IllegalStateException("Missing test preview: " + resourceName);
+        ((ImageView) findViewById(viewId)).setImageResource(resourceId);
     }
 
     private String loadDetailPreview(String kind, String fixture) {

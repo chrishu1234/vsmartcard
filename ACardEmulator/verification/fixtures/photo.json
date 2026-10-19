@@ -7,6 +7,8 @@
     {"id":"td1-bac","format":"TD1","authentication":"BAC","color":"#2563EB","jpegBytes":3258,"dg2Bytes":3342,"jpegSHA256":"56e5e88820ffdc84cede937d959df8ee87b53055261b93d71526258d4e7daafb","dg2SHA256":"abf9dd11ddaed4670b5cb4a06b64da3e21b6f23ff4b4ecd14b2cac095df5ddc0"},
     {"id":"td1-pace","format":"TD1","authentication":"PACE","color":"#059669","jpegBytes":3263,"dg2Bytes":3347,"jpegSHA256":"57b35916619788e0768b553a0a3d8a68c5dfb9f4b19bba788dd7f3ddb02cf343","dg2SHA256":"09dc26b1d5ae51f027963762a0885dbe370d2bb725ca21bfdea09d300f6b4955"},
     {"id":"td3-bac","format":"TD3","authentication":"BAC","color":"#D97706","jpegBytes":3225,"dg2Bytes":3309,"jpegSHA256":"cc3d54ac0a289296a69123775f5a1d823ac6d158b01b11889d83925a96bcd024","dg2SHA256":"390ae3f2759fcb087f787976d7ec6c6b0ce81e0a935f99e0e8e47059f473ca21"},
-    {"id":"td3-pace","format":"TD3","authentication":"PACE","color":"#7C3AED","jpegBytes":3428,"dg2Bytes":3512,"jpegSHA256":"ee4dc0382e889e0008b5fa1b4900ab7d14fafe4da8423c667d2da22de6090704","dg2SHA256":"6b0087e6a80c59824bd610007d9f562fd77b4c1044ba9779f08c2b1e5bc8dff7"}
+    {"id":"td3-pace","format":"TD3","authentication":"PACE","color":"#7C3AED","jpegBytes":3428,"dg2Bytes":3512,"jpegSHA256":"ee4dc0382e889e0008b5fa1b4900ab7d14fafe4da8423c667d2da22de6090704","dg2SHA256":"6b0087e6a80c59824bd610007d9f562fd77b4c1044ba9779f08c2b1e5bc8dff7"},
+    {"id":"td2-bac","format":"TD2","authentication":"BAC","color":"#BE185D","jpegBytes":3303,"dg2Bytes":3387,"jpegSHA256":"d8f667c5c3e2ca504b07f0b1afa3b604693a7594cc4f11f9879630dd0d43fc06","dg2SHA256":"83b55ce69b81fd50e1b07c16702055021aac0cf66bea492f9ab713f6ef9f383e"},
+    {"id":"td2-pace","format":"TD2","authentication":"PACE","color":"#0E7490","jpegBytes":3508,"dg2Bytes":3592,"jpegSHA256":"6b1e521cebd7d6d975c6feb6cc30741b7e7279248123d97c3eac644d391e1e0e","dg2SHA256":"2de0fd0194a7721a8ce9dbc6eaf207e7c50b28b305d76cc5044c2cffbce97f57"}
   ]
 }
