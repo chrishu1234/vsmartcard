@@ -82,6 +82,7 @@ public class EmulatorSingleton {
             if (str_emulator.equals(context.getString(R.string.local_mrtd))) {
                 emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), SP.getString("mrtd_auth", "PACE"), SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false), SP.getBoolean("mrtd_biometric", false));
                 ((TravelDocumentEmulator)emulator).setChipScenario(SP.getString("mrtd_chip", "Valid"));
+                ((TravelDocumentEmulator)emulator).setRequireTerminalAuthentication(SP.getBoolean("mrtd_ta", false) && SP.getBoolean("mrtd_security", false) && SP.getBoolean("mrtd_biometric", false));
                 String mfResponse = SP.getString("mrtd_mf_response", SP.getBoolean("mrtd_reject_mf", false) ? "Reject (6A81)" : "Normal (9000)");
                 ((TravelDocumentEmulator)emulator).setSelectMFResponse(mfResponse.equals("Wrong length (6700)") ? 0x6700 : mfResponse.equals("Reject (6A81)") ? 0x6A81 : 0x9000);
             } else if (str_emulator.equals(context.getString(R.string.vicc))) {

@@ -44,6 +44,8 @@
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" />
             <CheckBox android:id="@+id/securityFiles" android:text="Security information (DG14 / DG15)"
                 android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" />
+            <CheckBox android:id="@+id/terminalAuth" android:text="Require terminal authorization for DG3 / DG4"
+                android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:visibility="gone" />
             <TextView android:id="@+id/textViewCardDetails" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:paddingStart="16dp" android:paddingEnd="16dp" android:textIsSelectable="true" android:textSize="16sp" />
             <ImageView android:id="@+id/dg2Preview" android:layout_width="160dp" android:layout_height="120dp"

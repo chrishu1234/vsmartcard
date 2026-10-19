@@ -51,6 +51,19 @@ public final class TravelDocumentEmulator implements Emulator {
     private final ByteArrayOutputStream caSegments = new ByteArrayOutputStream();
     private String chipScenario = "Valid";
     private int selectMFResponse = 0x9000;
+    private boolean requireTA;
+    private TerminalAuthorization terminal = new TerminalAuthorization(loadFixture("ta-ec-root.cvc", 0x7F));
+    private byte[] paceIdentifier;
+
+    public synchronized void setRequireTerminalAuthentication(boolean required) {
+        if(required && (!securityFiles || !biometricFiles)) throw new IllegalArgumentException("TA requires security and biometric fixtures");
+        reset();requireTA=required;
+    }
+    /** Select a synthetic trust anchor for interoperability tests; resets all sessions. */
+    public synchronized void setTerminalCertificateType(String type) {
+        if(!type.equals("ec")&&!type.equals("rsa"))throw new IllegalArgumentException("Unknown test CVC algorithm");
+        reset();terminal=new TerminalAuthorization(loadFixture("ta-"+type+"-root.cvc",0x7F));
+    }
 
     public TravelDocumentEmulator(String format, String authentication) {
         this(format, authentication, "Valid");
@@ -117,7 +130,7 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private static byte[] ascii(String text) { return text.getBytes(StandardCharsets.US_ASCII); }
     private static byte[] loadFixture(String fixture, int tag) {
-        try (InputStream input = TravelDocumentEmulator.class.getResourceAsStream("/mrtd/" + fixture + ".bin")) {
+        try (InputStream input = TravelDocumentEmulator.class.getResourceAsStream("/mrtd/" + fixture + (fixture.endsWith(".cvc") ? "" : ".bin"))) {
             if (input == null) throw new IOException("Bundled fixture missing: " + fixture);
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024]; int count;
@@ -132,7 +145,7 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     public synchronized String getStatus() {
         if (destroyed) return "Stopped";
-        if (channel != null) return (pace ? "PACE" : "BAC") + " authenticated" + (selectedFile == 0x0101 ? " · DG1 selected" : selectedFile == 0x0102 ? " · DG2 selected" : selectedFile == 0x011D ? " · SOD selected" : "");
+        if (channel != null) return (pace ? "PACE" : "BAC") + " authenticated" + (requireTA ? terminal.authenticated() ? " · TA passed · DG3" + (terminal.allows(4) ? " / DG4" : " only") : " · DG3 / DG4 locked" : "") + (selectedFile == 0x0101 ? " · DG1 selected" : selectedFile == 0x0102 ? " · DG2 selected" : selectedFile == 0x011D ? " · SOD selected" : "");
         if (phase >= 0) return "PACE · step " + (phase + 1);
         return "Ready · " + (pace ? "PACE" : "BAC");
     }
@@ -169,6 +182,9 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private byte[] execute(Command c) throws GeneralSecurityException {
         require(c.cla == 0 || (c.cla == 0x10 && c.ins == 0x86), 0x6E00);
+        if (channel != null && ((c.ins == 0x22 && c.p1 == 0x81) || c.ins == 0x2A || c.ins == 0x84 || c.ins == 0x82)) {
+            return terminal.execute(c.ins,c.p1,c.p2,c.data,c.le);
+        }
         if (channel != null && c.ins == 0x88) return activeAuthenticate(c);
         if (channel != null && (c.ins == 0x22 || c.ins == 0x86)) return chipAuthenticate(c);
         if (c.ins == 0x22 || c.ins == 0x82 || c.ins == 0x84 || c.ins == 0x86) require(channel == null, 0x6985);
@@ -248,6 +264,8 @@ public final class TravelDocumentEmulator implements Emulator {
         int size=caCipher<=2?16:caCipher==3?24:32;
         byte[] enc=caKdf(secret,1,size),macKey=caKdf(secret,2,size);wipe(secret);
         pendingChannel=new SecureChannel(caCipher!=1,enc,macKey,new byte[caCipher==1?8:16]);wipe(enc);wipe(macKey);selectedFile=0;
+        byte[] keyHash=caPrivate instanceof DHPrivateKey?sha1(peerBytes):slice(peerBytes,1,33);
+        terminal.afterCA(pace ? paceIdentifier : slice(mrzInformation,0,10),keyHash);wipe(keyHash);
     }
     private byte[] caKdf(byte[] secret,int counter,int size)throws GeneralSecurityException {
         return java.util.Arrays.copyOf(java.security.MessageDigest.getInstance(size==16?"SHA-1":"SHA-256").digest(concat(secret,new byte[]{0,0,0,(byte)counter})),size);
@@ -272,8 +290,10 @@ public final class TravelDocumentEmulator implements Emulator {
             else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || biometricFiles && (fid == 0x0103 || fid == 0x0104) || displayedImages && (fid == 0x0105 || fid == 0x0107) || additionalDetails && (fid == 0x010B || fid == 0x010C) || securityFiles && (fid == 0x010E || fid == 0x010F))) selectedFile = fid;
             else throw new Status(0x6A82);
         }
+        checkBiometricPermission();
         return new byte[0];
     }
+    private void checkBiometricPermission(){if(requireTA && (selectedFile==0x0103||selectedFile==0x0104))require(terminal.allows(selectedFile-0x0100),0x6982);}
     private byte[] read(Command c) {
         require(c.data.length == 0 && c.le > 0, 0x6700);
         int offset = c.p1 * 256 + c.p2;
@@ -298,6 +318,7 @@ public final class TravelDocumentEmulator implements Emulator {
         }
         require(selectedFile != 0, 0x6986);
         require(selectedFile == 0x011C || channel != null, 0x6982);
+        checkBiometricPermission();
         byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0103 ? dg3 : selectedFile == 0x0104 ? dg4 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
         require(offset < file.length, 0x6B00);
         // With AES padding, 224 plaintext bytes would produce 258 protected data
@@ -370,6 +391,7 @@ public final class TravelDocumentEmulator implements Emulator {
             require(equal(value, token(publicPoint)), 0x6300);
             response = token(peer);
             channel = new SecureChannel(true, sessionEnc, sessionMac, new byte[16]);
+            wipe(paceIdentifier);paceIdentifier=slice(encode(publicPoint),1,33);
             wipe(passwordKey); passwordKey = null;
             wipe(sessionEnc); sessionEnc = null; wipe(sessionMac); sessionMac = null;
             generator = peer = publicPoint = null;
@@ -379,6 +401,7 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     private byte[] token(ECPoint point) { return mac(true, sessionMac, tlv(0x7F49, concat(tlv(6, OID), tlv(0x86, encode(point))))); }
     private void resetSecurity() {
+        terminal.clear();wipe(paceIdentifier);paceIdentifier=null;
         caReady=false;caSegments.reset();if(pendingChannel!=null){pendingChannel.destroy();pendingChannel=null;}
         if (channel != null) channel.destroy(); channel = null;
         wipe(challenge); challenge = null; wipe(passwordKey); passwordKey = null;

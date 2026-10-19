@@ -152,6 +152,12 @@ public class MainActivity extends AppCompatActivity {
                 new String[] {"Normal (9000)", "Reject (6A81)", "Wrong length (6700)"}, mfFallback);
         CheckBox displayed = findViewById(R.id.displayedImages);
         CheckBox biometric = findViewById(R.id.biometricFiles);
+        CheckBox terminalAuth = findViewById(R.id.terminalAuth);
+        terminalAuth.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_ta", false));
+        terminalAuth.setOnCheckedChangeListener((button, checked) -> {
+            PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_ta", checked).apply();
+            EmulatorSingleton.destroyEmulator(); textViewVPCDStatus.setText(""); refreshCardControls();
+        });
         biometric.setChecked(PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_biometric", false));
         biometric.setOnCheckedChangeListener((button, checked) -> {
             PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean("mrtd_biometric", checked).apply();
@@ -242,6 +248,7 @@ public class MainActivity extends AppCompatActivity {
         detailPreview.setText(showDetails ? loadDetailPreview("details", fixture) : "");
         TextView securityPreview = findViewById(R.id.securityFilesPreview);
         boolean showSecurity = local && preferences.getBoolean("mrtd_security", false);
+        findViewById(R.id.terminalAuth).setVisibility(showSecurity && biometrics ? View.VISIBLE : View.GONE);
         securityPreview.setVisibility(showSecurity ? View.VISIBLE : View.GONE);
         findViewById(R.id.chipControls).setVisibility(showSecurity ? View.VISIBLE : View.GONE);
         securityPreview.setText(showSecurity ? loadDetailPreview("security", fixture).replace("AA: NOT_CHECKED", td1 ? "AA: RSA signing" : "AA: ECDSA signing").replace("CA: NOT_CHECKED", td1 ? "CA: DH / AES-128" : "CA: ECDH / AES-128") : "");

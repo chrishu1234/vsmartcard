@@ -1,3 +1,64 @@
+Final CVC / TA validation (2026-10-19): host Hypium 1356/1356 (62 new),
+controller lifecycle 53/53, original Java TA 72/72, ArkTS TA loopback 108/108,
+existing full service / APK-engine matrix 930/930, Android JVM 35/35.
+Main APK/HAP and XTS HAP compile/sign. Main apps installed/launched on Android
+4bb4b52d and HarmonyOS 63Q0226121038117. No NFC/UI tests or native XTS run were
+performed on the phones in this increment; the user performs contact testing.
+
+CVC / TA manual test (2026-10-19)
+---------------------------------
+Android Travel Card 0.11 Debug v10.0 (code 24), Local travel document:
+- Choose TD1 / BAC initially, PA Valid, Chip test Valid, SELECT MF Normal.
+- Enable Biometric images (DG3 / DG4), Security information (DG14 / DG15),
+  then Require terminal authorization for DG3 / DG4 (visible with both enabled).
+HarmonyOS: D23145890 / 740812 / 120415. Enable Read biometric images and
+Read security information; Verify chip is optional for AA (CA runs for TA).
+1. Leave Authorize test terminal off: DG1/photo read; DG3 and DG4 access denied.
+2. Enable Authorize test terminal, choose Valid terminal, Start reading and
+   present again: CA PASS, TA PASS, finger/iris previews readable.
+3. Choose DG3 permission only: TA PASS, DG3 readable, DG4 access denied.
+4. Try Untrusted issuer / Expired certificate / Bad certificate signature /
+   Bad terminal signature: TA FAIL, DG3 and DG4 denied, basic data retained.
+Remove the phones between attempts. Repeat with Android PACE; reader accepts
+MRZ or CAN 123456. TD2 uses the same MRZ inputs; TD3 uses L898902C3, same dates.
+All certificate profiles are development-only, not real issuer authorization.
+XTS cases are compiled with the test HAP; no native XTS execution or NFC
+success is inferred from host tests. Only installation/main launch is automated.
+
+CVC / EAC v1 Terminal Authentication (2026-10-19)
+------------------------------------------------
+Adds original JMRTD 0.8.9 CVC models/factory/builder/CVCAFile, TA capability,
+APDU sender, protocol, result and PassportService.doEACTA. Native crypto is
+injected through TerminalAuthenticationCrypto. CVC EC keys without domain
+parameters explicitly inherit the issuer's PublicKeyData. Nested Java role /
+permission enums use CVCRole / CVCPermission; permission implies is a static
+CVCAuthorizationTemplate helper. CVC batch/CRL TODO methods retain undefined
+(original null); no certificate revocation capability is implied.
+
+TA follows CA, transmits DV -> IS certificates (a self-signed CVCA marker is
+omitted as upstream), obtains an 8-byte challenge and signs idPICC || challenge
+|| CA keyHash. BAC uses document number plus check digit; PACE uses the chip
+PACE ephemeral public key. ECDSA wire signatures use fixed-width r || s.
+CA results must belong to the current service wrapper. Async cancellation is
+checked before every APDU, including after native signing.
+
+Android test card requires opt-in terminal authorization for DG3/DG4. It checks
+the synthetic CVCA -> DV -> IS chain, certificate signatures/dates/roles/rights,
+challenge freshness, chip identifier and CA ephemeral key hash. Invalid TA,
+reset/deactivation and a new CA session revoke prior permissions. Valid
+DG3-only authorization never unlocks DG4. Existing fixtures remain unchanged
+when the option is off. Demo uses EC P-256/SHA-256; host interop also checks
+RSA-2048/SHA-256, across TD1/TD2/TD3 and BAC/PACE. This is the upstream EAC v1
+path, not complete EAC v2, CVCA rollover or production credential provisioning.
+Exportable PKCS#8 development keys are supported; non-exportable HSM/HUKS key
+handles require a separate platform adapter. Test credentials grant no real
+passport access and must never become production trust anchors.
+
+Verification sources: library/src/test/TACases.ets (canonical Hypium), synced
+by verification/generate-ta.py into ohosTest; run-host-tests.cjs,
+run-ta-interop.cjs and Android verification/verify-ta.py. Native XTS compilation
+and host execution are separate evidence; physical NFC is operated by the user.
+
 TD2 independent fixture (2026-10-19)
 ----------------------------------
 Version 9.1-0.11-td2 (code 23) adds TD2 to the document selector. TD2 has a
