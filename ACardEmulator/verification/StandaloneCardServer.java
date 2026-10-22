@@ -12,6 +12,7 @@ public final class StandaloneCardServer {
         if(args.length>8)card.setSelectMFResponse(Integer.parseInt(args[8],16));
         if(args.length>10)card.setRequireTerminalAuthentication(Boolean.parseBoolean(args[10]));
         if(args.length>11)card.setTerminalCertificateType(args[11]);
+        if(args.length>13)card.setPACEProfile(args[12],Integer.parseInt(args[13]));
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))) {
             server.setSoTimeout(20000);
             System.out.println(server.getLocalPort()); System.out.flush();

@@ -143,8 +143,8 @@ public class MainActivity extends AppCompatActivity {
         textViewVPCDStatus = findViewById(R.id.textViewLog);
         cardStatus = findViewById(R.id.textViewCardStatus);
         setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD2", "TD3"}, "TD1");
-        setupSelector(R.id.authenticationMode, "mrtd_auth", new String[] {"BAC", "PACE"}, "PACE");
-        setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA"}, "Valid");
+        setupSelector(R.id.authenticationMode, "mrtd_auth", com.vsmartcard.acardemulator.emulators.mrtd.PACECardProfile.CHOICES, "PACE");
+        setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA", "CMS RSA (SHA-384)", "CMS PSS (SHA-256)", "CMS ECDSA (SHA-512)", "ISO 39794 base", "ISO 39794 ICAO"}, "Valid");
         setupSelector(R.id.chipScenario, "mrtd_chip", new String[] {"Valid", "Bad AA signature", "Wrong CA key"}, "Valid");
         String mfFallback = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("mrtd_reject_mf", false)
                 ? "Reject (6A81)" : "Normal (9000)";
@@ -233,9 +233,9 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.displayedPreviews).setVisibility(local && displayed ? View.VISIBLE : View.GONE);
         String format = preferences.getString("mrtd_format", "TD1");
         boolean td1 = format.equals("TD1");
-        String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + preferences.getString("mrtd_auth", "PACE").toLowerCase(java.util.Locale.ROOT);
+        boolean pace = !preferences.getString("mrtd_auth", "PACE").equals("BAC");
+        String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + (pace ? "pace" : "bac");
         String resource = fixture.replace('-', '_');
-        boolean pace = preferences.getString("mrtd_auth", "PACE").equals("PACE");
         setFixturePreview(R.id.fingerRightPreview, "dg3_" + resource + "_0");
         setFixturePreview(R.id.fingerLeftPreview, "dg3_" + resource + "_1");
         setFixturePreview(R.id.irisRightPreview, "dg4_" + resource + "_0");

@@ -32,15 +32,13 @@ import static com.vsmartcard.acardemulator.emulators.mrtd.CardCrypto.*;
 /** Card-side BAC/PACE and secure DG1/DG2 fixture; independent of Android/TCP. */
 public final class TravelDocumentEmulator implements Emulator {
     private static final byte[] AID = hex("A0000002471001");
-    private static final byte[] OID = hex("04007F00070202040202");
-    private static final byte[] CARD_ACCESS = hex("31143012060A04007F0007020204020202010202010D");
+    private PACECardProfile paceProfile = PACECardProfile.preset("PACE");
+    private PACECardSession paceSession;
     private static final byte[] COM = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")), tlv(0x5C, hex("6175"))));
     private final boolean pace;
     private final byte[] dg1, dg2, dg3, dg4, dg5, dg7, dg11, dg12, dg14, dg15, com, sod, mrzInformation;
     private final boolean displayedImages, additionalDetails, securityFiles, biometricFiles;
-    private byte[] challenge, passwordKey, sessionEnc, sessionMac;
-    private BigInteger nonce;
-    private ECPoint generator, peer, publicPoint;
+    private byte[] challenge;
     private int phase = -1, selectedFile;
     private boolean applicationSelected, destroyed;
     private SecureChannel channel, pendingChannel;
@@ -54,6 +52,8 @@ public final class TravelDocumentEmulator implements Emulator {
     private boolean requireTA;
     private TerminalAuthorization terminal = new TerminalAuthorization(loadFixture("ta-ec-root.cvc", 0x7F));
     private byte[] paceIdentifier;
+    public synchronized void setPACEProfile(String oid, int parameterId) { if (!pace) throw new IllegalArgumentException("PACE profile requires PACE mode"); reset(); paceProfile = new PACECardProfile(oid, parameterId); }
+    public synchronized void setPACEPreset(String preset) { if (!pace) throw new IllegalArgumentException("PACE preset requires PACE mode"); reset(); paceProfile = PACECardProfile.preset(preset); }
 
     public synchronized void setRequireTerminalAuthentication(boolean required) {
         if(required && (!securityFiles || !biometricFiles)) throw new IllegalArgumentException("TA requires security and biometric fixtures");
@@ -82,16 +82,17 @@ public final class TravelDocumentEmulator implements Emulator {
     }
     public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles, boolean biometricFiles) {
         if (!(format.equals("TD1") || format.equals("TD2") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
-        if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA"))) throw new IllegalArgumentException("Unsupported PA scenario");
+        if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA") || paScenario.equals("CMS RSA (SHA-384)") || paScenario.equals("CMS PSS (SHA-256)") || paScenario.equals("CMS ECDSA (SHA-512)") || paScenario.equals("ISO 39794 base") || paScenario.equals("ISO 39794 ICAO"))) throw new IllegalArgumentException("Unsupported PA scenario");
         pace = authentication.equals("PACE");
         this.displayedImages = displayedImages;
         this.additionalDetails = additionalDetails;
         this.securityFiles = securityFiles;
         this.biometricFiles = biometricFiles;
         String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + authentication.toLowerCase(java.util.Locale.ROOT);
-        dg2 = loadFixture("dg2-" + fixture, 0x75);
-        dg3 = biometricFiles ? loadFixture("dg3-" + fixture, 0x63) : null;
-        dg4 = biometricFiles ? loadFixture("dg4-" + fixture, 0x76) : null;
+        String encodingPrefix = paScenario.startsWith("ISO 39794") ? "iso39794-" + (paScenario.endsWith("ICAO") ? "icao-" : "base-") : "";
+        dg2 = loadFixture("dg2-" + encodingPrefix + fixture, 0x75);
+        dg3 = biometricFiles ? loadFixture("dg3-" + encodingPrefix + fixture, 0x63) : null;
+        dg4 = biometricFiles ? loadFixture("dg4-" + encodingPrefix + fixture, 0x76) : null;
         dg5 = displayedImages ? loadFixture("dg5-" + fixture, 0x65) : null;
         dg7 = displayedImages ? loadFixture("dg7-" + fixture, 0x67) : null;
         dg11 = additionalDetails ? loadFixture("dg11-" + fixture, 0x6B) : null;
@@ -104,6 +105,8 @@ public final class TravelDocumentEmulator implements Emulator {
         com = tlv(0x60, concat(tlv(0x5F01, ascii("0107")), tlv(0x5F36, ascii("040000")),
                 tlv(0x5C, hex("6175" + (biometricFiles ? "6376" : "") + (displayedImages ? "6567" : "") + (additionalDetails ? "6B6C" : "") + (securityFiles ? "6E6F" : "")))));
         String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "") + (biometricFiles ? "biometric-" : "");
+        if (!encodingPrefix.isEmpty()) sodPrefix = sodPrefix.replace("sod-", "sod-" + encodingPrefix);
+        if (paScenario.startsWith("CMS ")) sodPrefix = sodPrefix.replace("sod-", "sod-cms-" + (paScenario.contains("PSS") ? "pss256" : paScenario.contains("ECDSA") ? "ec512" : "rsa384") + "-");
         sod = loadFixture(sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture, 0x77);
         dg1 = loadFixture("dg1-" + fixture, 0x61);
         if (paScenario.equals("Altered DG1")) {
@@ -135,7 +138,7 @@ public final class TravelDocumentEmulator implements Emulator {
             ByteArrayOutputStream bytes = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024]; int count;
             while ((count = input.read(buffer)) != -1) {
-                if (bytes.size() + count > 8192) throw new IOException("Fixture too large");
+                if (bytes.size() + count > 65536) throw new IOException("Fixture too large");
                 bytes.write(buffer, 0, count);
             }
             byte[] encoded = bytes.toByteArray();
@@ -147,7 +150,7 @@ public final class TravelDocumentEmulator implements Emulator {
         if (destroyed) return "Stopped";
         if (channel != null) return (pace ? "PACE" : "BAC") + " authenticated" + (requireTA ? terminal.authenticated() ? " · TA passed · DG3" + (terminal.allows(4) ? " / DG4" : " only") : " · DG3 / DG4 locked" : "") + (selectedFile == 0x0101 ? " · DG1 selected" : selectedFile == 0x0102 ? " · DG2 selected" : selectedFile == 0x011D ? " · SOD selected" : "");
         if (phase >= 0) return "PACE · step " + (phase + 1);
-        return "Ready · " + (pace ? "PACE" : "BAC");
+        return "Ready · " + (pace ? paceProfile.toString() : "BAC");
     }
     @Override public synchronized byte[] process(byte[] raw) {
         if (destroyed) return hex("6F00");
@@ -286,7 +289,7 @@ public final class TravelDocumentEmulator implements Emulator {
             require((c.p1 == 0 || c.p1 == 2) && c.data.length == 2, 0x6A86);
             int fid = (c.data[0] & 255) * 256 + (c.data[1] & 255);
             if (fid == 0x3F00) { applicationSelected = false; selectedFile = 0; }
-            else if (fid == 0x011C && !applicationSelected && pace) selectedFile = fid;
+            else if (!applicationSelected && pace && (fid == 0x011C || fid == 0x011D && paceProfile.cam)) selectedFile = fid;
             else if (applicationSelected && (fid == 0x0101 || fid == 0x0102 || fid == 0x011D || fid == 0x011E || biometricFiles && (fid == 0x0103 || fid == 0x0104) || displayedImages && (fid == 0x0105 || fid == 0x0107) || additionalDetails && (fid == 0x010B || fid == 0x010C) || securityFiles && (fid == 0x010E || fid == 0x010F))) selectedFile = fid;
             else throw new Status(0x6A82);
         }
@@ -317,9 +320,9 @@ public final class TravelDocumentEmulator implements Emulator {
             offset = c.p2;
         }
         require(selectedFile != 0, 0x6986);
-        require(selectedFile == 0x011C || channel != null, 0x6982);
+        require(selectedFile == 0x011C || !applicationSelected && selectedFile == 0x011D && paceProfile.cam || channel != null, 0x6982);
         checkBiometricPermission();
-        byte[] file = selectedFile == 0x011C ? CARD_ACCESS : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0103 ? dg3 : selectedFile == 0x0104 ? dg4 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
+        byte[] file = selectedFile == 0x011C ? paceProfile.cardAccess() : !applicationSelected && selectedFile == 0x011D && paceProfile.cam ? paceProfile.cardSecurity() : selectedFile == 0x0101 ? dg1 : selectedFile == 0x0102 ? dg2 : selectedFile == 0x0103 ? dg3 : selectedFile == 0x0104 ? dg4 : selectedFile == 0x0105 ? dg5 : selectedFile == 0x0107 ? dg7 : selectedFile == 0x010B ? dg11 : selectedFile == 0x010C ? dg12 : selectedFile == 0x010E ? dg14 : selectedFile == 0x010F ? dg15 : selectedFile == 0x011D ? sod : com;
         require(offset < file.length, 0x6B00);
         // With AES padding, 224 plaintext bytes would produce 258 protected data
         // bytes, beyond short Le=256. Announce the supported read length; the
@@ -353,60 +356,27 @@ public final class TravelDocumentEmulator implements Emulator {
         require(c.p1 == 0xC1 && c.p2 == 0xA4, 0x6A86);
         List<TLV> fields = objects(c.data);
         require(fields.size() == 2 || fields.size() == 3, 0x6A80);
-        require(fields.get(0).tag == 0x80 && equal(fields.get(0).value, OID) && fields.get(1).tag == 0x83 && fields.get(1).value.length == 1, 0x6A80);
-        if (fields.size() == 3) require(fields.get(2).tag == 0x84 && equal(fields.get(2).value, hex("0D")), 0x6A80);
+        require(fields.get(0).tag == 0x80 && equal(fields.get(0).value, paceProfile.oid) && fields.get(1).tag == 0x83 && fields.get(1).value.length == 1, 0x6A80);
+        if (fields.size() == 3) require(fields.get(2).tag == 0x84 && new BigInteger(1, fields.get(2).value).intValue() == paceProfile.parameterId, 0x6A80);
         int reference = fields.get(1).value[0];
-        require(reference == 1 || reference == 2, 0x6A88);
-        byte[] seed = reference == 1 ? sha1(mrzInformation) : ascii("123456");
-        passwordKey = kdf(seed, 3, false); wipe(seed); phase = 0;
+        require(reference >= 1 && reference <= 4, 0x6A88);
+        byte[] seed = reference == 1 ? sha1(mrzInformation) : ascii(reference == 4 ? "12345678" : "123456");
+        paceSession = new PACECardSession(paceProfile, seed); wipe(seed); phase = 0;
         return new byte[0];
     }
     private byte[] generalAuthenticate(Command c) throws GeneralSecurityException {
-        require(pace && c.p1 == 0 && c.p2 == 0 && phase >= 0 && phase < 4 && c.cla == (phase == 3 ? 0 : 0x10), 0x6985);
-        List<TLV> outer = objects(c.data);
-        require(outer.size() == 1 && outer.get(0).tag == 0x7C, 0x6A80);
-        List<TLV> inner = objects(outer.get(0).value);
-        require(phase == 0 ? inner.isEmpty() : inner.size() == 1 && inner.get(0).tag == new int[] {0, 0x81, 0x83, 0x85}[phase], 0x6A80);
-        byte[] value = inner.isEmpty() ? new byte[0] : inner.get(0).value;
-        byte[] response;
-        if (phase == 0) {
-            byte[] bytes = random(16); nonce = new BigInteger(1, bytes);
-            response = crypt(true, true, passwordKey, new byte[16], bytes); wipe(bytes);
-        } else if (phase == 1) {
-            ECPoint mappingPeer = point(value);
-            BigInteger secret = scalar();
-            ECPoint mappingPublic = CURVE.getG().multiply(secret);
-            require(!mappingPublic.equals(mappingPeer), 0x6A80);
-            generator = CURVE.getG().multiply(nonce).add(mappingPeer.multiply(secret));
-            encode(generator); nonce = null;
-            response = encode(mappingPublic);
-        } else if (phase == 2) {
-            peer = point(value);
-            BigInteger secret = scalar(); publicPoint = generator.multiply(secret);
-            require(!peer.equals(publicPoint), 0x6A80);
-            byte[] shared = slice(encode(peer.multiply(secret)), 1, 33);
-            sessionEnc = kdf(shared, 1, false); sessionMac = kdf(shared, 2, false); wipe(shared);
-            response = encode(publicPoint);
-        } else {
-            require(equal(value, token(publicPoint)), 0x6300);
-            response = token(peer);
-            channel = new SecureChannel(true, sessionEnc, sessionMac, new byte[16]);
-            wipe(paceIdentifier);paceIdentifier=slice(encode(publicPoint),1,33);
-            wipe(passwordKey); passwordKey = null;
-            wipe(sessionEnc); sessionEnc = null; wipe(sessionMac); sessionMac = null;
-            generator = peer = publicPoint = null;
-        }
-        int tag = new int[] {0x80, 0x82, 0x84, 0x86}[phase++];
-        return tlv(0x7C, tlv(tag, response));
+        require(pace && paceSession != null, 0x6985);
+        byte[] response = paceSession.exchange(c); phase = paceSession.phase();
+        if (phase == 4) { channel = paceSession.channel(); wipe(paceIdentifier); paceIdentifier = paceSession.identifier(); paceSession.clear(); paceSession = null; }
+        return response;
     }
-    private byte[] token(ECPoint point) { return mac(true, sessionMac, tlv(0x7F49, concat(tlv(6, OID), tlv(0x86, encode(point))))); }
     private void resetSecurity() {
+        if (paceSession != null) { paceSession.clear(); paceSession = null; }
         terminal.clear();wipe(paceIdentifier);paceIdentifier=null;
         caReady=false;caSegments.reset();if(pendingChannel!=null){pendingChannel.destroy();pendingChannel=null;}
         if (channel != null) channel.destroy(); channel = null;
-        wipe(challenge); challenge = null; wipe(passwordKey); passwordKey = null;
-        wipe(sessionEnc); sessionEnc = null; wipe(sessionMac); sessionMac = null;
-        nonce = null; generator = peer = publicPoint = null; phase = -1;
+        wipe(challenge); challenge = null;
+        phase = -1;
     }
     private void reset() { resetSecurity(); applicationSelected = false; selectedFile = 0; }
     @Override public synchronized void deactivate() { reset(); }

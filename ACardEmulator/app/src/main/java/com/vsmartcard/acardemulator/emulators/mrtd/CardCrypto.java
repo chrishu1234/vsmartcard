@@ -36,7 +36,7 @@ final class CardCrypto {
     static byte[] crypt(boolean encrypt, boolean aes, byte[] key, byte[] iv, byte[] data) throws GeneralSecurityException {
         String algorithm = aes ? "AES" : "DESede";
         Cipher cipher = Cipher.getInstance(algorithm + "/CBC/NoPadding");
-        byte[] material = aes ? key : concat(key, slice(key, 0, 8));
+        byte[] material = aes || key.length == 24 ? key : concat(key, slice(key, 0, 8));
         cipher.init(encrypt ? Cipher.ENCRYPT_MODE : Cipher.DECRYPT_MODE, new SecretKeySpec(material, algorithm), new IvParameterSpec(iv));
         return cipher.doFinal(data);
     }

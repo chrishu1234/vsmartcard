@@ -80,7 +80,9 @@ public class EmulatorSingleton {
             Log.d("", "Begin transaction");
             String str_emulator = SP.getString("emulator", context.getString(R.string.local_mrtd));
             if (str_emulator.equals(context.getString(R.string.local_mrtd))) {
-                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), SP.getString("mrtd_auth", "PACE"), SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false), SP.getBoolean("mrtd_biometric", false));
+                String authChoice = SP.getString("mrtd_auth", "PACE");
+                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), authChoice.equals("BAC") ? "BAC" : "PACE", SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false), SP.getBoolean("mrtd_biometric", false));
+                if (!authChoice.equals("BAC")) ((TravelDocumentEmulator)emulator).setPACEPreset(authChoice);
                 ((TravelDocumentEmulator)emulator).setChipScenario(SP.getString("mrtd_chip", "Valid"));
                 ((TravelDocumentEmulator)emulator).setRequireTerminalAuthentication(SP.getBoolean("mrtd_ta", false) && SP.getBoolean("mrtd_security", false) && SP.getBoolean("mrtd_biometric", false));
                 String mfResponse = SP.getString("mrtd_mf_response", SP.getBoolean("mrtd_reject_mf", false) ? "Reject (6A81)" : "Normal (9000)");
