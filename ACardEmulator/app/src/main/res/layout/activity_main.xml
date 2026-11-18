@@ -23,6 +23,15 @@
                         android:layout_width="match_parent" android:layout_height="48dp" />
                 </LinearLayout>
             </LinearLayout>
+            <LinearLayout android:id="@+id/imageCodecControls" android:orientation="vertical"
+                android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <TextView android:text="@string/image_codec" android:layout_width="match_parent" android:layout_height="wrap_content" />
+                <Spinner android:id="@+id/imageCodec" android:contentDescription="@string/image_codec"
+                    android:layout_width="match_parent" android:layout_height="48dp" />
+                <TextView android:id="@+id/imageCodecInfo" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="13sp" />
+            </LinearLayout>
             <LinearLayout android:id="@+id/selectMFControls" android:orientation="vertical"
                 android:paddingStart="16dp" android:paddingEnd="16dp" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:visibility="gone">

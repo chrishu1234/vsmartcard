@@ -81,6 +81,10 @@ public final class TravelDocumentEmulator implements Emulator {
         this(format, authentication, paScenario, displayedImages, additionalDetails, securityFiles, false);
     }
     public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles, boolean biometricFiles) {
+        this(format, authentication, paScenario, displayedImages, additionalDetails, securityFiles, biometricFiles, ImageCodecFixtures.JPEG);
+    }
+    public TravelDocumentEmulator(String format, String authentication, String paScenario, boolean displayedImages, boolean additionalDetails, boolean securityFiles, boolean biometricFiles, String imageCodec) {
+        ImageCodecFixtures.validate(imageCodec);
         if (!(format.equals("TD1") || format.equals("TD2") || format.equals("TD3")) || !(authentication.equals("BAC") || authentication.equals("PACE"))) throw new IllegalArgumentException("Unsupported fixture");
         if (!(paScenario.equals("Valid") || paScenario.equals("Altered DG1") || paScenario.equals("Bad signature") || paScenario.equals("Untrusted CSCA") || paScenario.equals("CMS RSA (SHA-384)") || paScenario.equals("CMS PSS (SHA-256)") || paScenario.equals("CMS ECDSA (SHA-512)") || paScenario.equals("ISO 39794 base") || paScenario.equals("ISO 39794 ICAO"))) throw new IllegalArgumentException("Unsupported PA scenario");
         pace = authentication.equals("PACE");
@@ -90,8 +94,12 @@ public final class TravelDocumentEmulator implements Emulator {
         this.biometricFiles = biometricFiles;
         String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + authentication.toLowerCase(java.util.Locale.ROOT);
         String encodingPrefix = paScenario.startsWith("ISO 39794") ? "iso39794-" + (paScenario.endsWith("ICAO") ? "icao-" : "base-") : "";
-        dg2 = loadFixture("dg2-" + encodingPrefix + fixture, 0x75);
-        dg3 = biometricFiles ? loadFixture("dg3-" + encodingPrefix + fixture, 0x63) : null;
+        dg2 = ImageCodecFixtures.JPEG2000.equals(imageCodec)
+                ? ImageCodecFixtures.load(imageCodec, "dg2-" + encodingPrefix + fixture, 0x75)
+                : loadFixture("dg2-" + encodingPrefix + fixture, 0x75);
+        dg3 = biometricFiles ? ImageCodecFixtures.WSQ.equals(imageCodec)
+                ? ImageCodecFixtures.load(imageCodec, "dg3-" + encodingPrefix + fixture, 0x63)
+                : loadFixture("dg3-" + encodingPrefix + fixture, 0x63) : null;
         dg4 = biometricFiles ? loadFixture("dg4-" + encodingPrefix + fixture, 0x76) : null;
         dg5 = displayedImages ? loadFixture("dg5-" + fixture, 0x65) : null;
         dg7 = displayedImages ? loadFixture("dg7-" + fixture, 0x67) : null;
@@ -107,7 +115,9 @@ public final class TravelDocumentEmulator implements Emulator {
         String sodPrefix = "sod-" + (displayedImages ? "displayed-" : "") + (additionalDetails ? "details-" : "") + (securityFiles ? "security-" : "") + (biometricFiles ? "biometric-" : "");
         if (!encodingPrefix.isEmpty()) sodPrefix = sodPrefix.replace("sod-", "sod-" + encodingPrefix);
         if (paScenario.startsWith("CMS ")) sodPrefix = sodPrefix.replace("sod-", "sod-cms-" + (paScenario.contains("PSS") ? "pss256" : paScenario.contains("ECDSA") ? "ec512" : "rsa384") + "-");
-        sod = loadFixture(sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture, 0x77);
+        String sodFixture = sodPrefix + (paScenario.equals("Bad signature") ? "bad-signature-" : paScenario.equals("Untrusted CSCA") ? "untrusted-" : "") + fixture;
+        sod = ImageCodecFixtures.JPEG2000.equals(imageCodec) || ImageCodecFixtures.WSQ.equals(imageCodec) && biometricFiles
+                ? ImageCodecFixtures.load(imageCodec, sodFixture, 0x77) : loadFixture(sodFixture, 0x77);
         dg1 = loadFixture("dg1-" + fixture, 0x61);
         if (paScenario.equals("Altered DG1")) {
             byte[] name = ascii("ERIKSSON");

@@ -53,6 +53,7 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.vsmartcard.acardemulator.emulators.EmulatorSingleton;
+import com.vsmartcard.acardemulator.emulators.mrtd.ImageCodecFixtures;
 
 import ACardEmulator.BuildConfig;
 import ACardEmulator.R;
@@ -143,6 +144,9 @@ public class MainActivity extends AppCompatActivity {
         textViewVPCDStatus = findViewById(R.id.textViewLog);
         cardStatus = findViewById(R.id.textViewCardStatus);
         setupSelector(R.id.documentFormat, "mrtd_format", new String[] {"TD1", "TD2", "TD3"}, "TD1");
+        setupSelector(R.id.imageCodec, "mrtd_image_codec", ImageCodecFixtures.CHOICES, ImageCodecFixtures.JPEG,
+                new String[]{getString(R.string.image_test_default), getString(R.string.image_test_jp2),
+                        getString(R.string.image_test_wsq)});
         setupSelector(R.id.authenticationMode, "mrtd_auth", com.vsmartcard.acardemulator.emulators.mrtd.PACECardProfile.CHOICES, "PACE");
         setupSelector(R.id.paScenario, "mrtd_pa", new String[] {"Valid", "Altered DG1", "Bad signature", "Untrusted CSCA", "CMS RSA (SHA-384)", "CMS PSS (SHA-256)", "CMS ECDSA (SHA-512)", "ISO 39794 base", "ISO 39794 ICAO"}, "Valid");
         setupSelector(R.id.chipScenario, "mrtd_chip", new String[] {"Valid", "Bad AA signature", "Wrong CA key"}, "Valid");
@@ -195,8 +199,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupSelector(int id, final String key, final String[] values, final String fallback) {
+        setupSelector(id, key, values, fallback, values);
+    }
+
+    private void setupSelector(int id, final String key, final String[] values, final String fallback,
+            final String[] labels) {
         Spinner spinner = findViewById(id);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, values);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
         String current = PreferenceManager.getDefaultSharedPreferences(this).getString(key, fallback);
@@ -221,6 +230,7 @@ public class MainActivity extends AppCompatActivity {
         String emulator = preferences.getString("emulator", getString(R.string.local_mrtd));
         boolean local = emulator.equals(getString(R.string.local_mrtd));
         findViewById(R.id.localCardControls).setVisibility(local ? View.VISIBLE : View.GONE);
+        findViewById(R.id.imageCodecControls).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.dg2Preview).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.paControls).setVisibility(local ? View.VISIBLE : View.GONE);
         findViewById(R.id.displayedImages).setVisibility(local ? View.VISIBLE : View.GONE);
@@ -236,11 +246,25 @@ public class MainActivity extends AppCompatActivity {
         boolean pace = !preferences.getString("mrtd_auth", "PACE").equals("BAC");
         String fixture = format.toLowerCase(java.util.Locale.ROOT) + "-" + (pace ? "pace" : "bac");
         String resource = fixture.replace('-', '_');
-        setFixturePreview(R.id.fingerRightPreview, "dg3_" + resource + "_0");
-        setFixturePreview(R.id.fingerLeftPreview, "dg3_" + resource + "_1");
+        String imageCodec = preferences.getString("mrtd_image_codec", ImageCodecFixtures.JPEG);
+        boolean wsq = ImageCodecFixtures.WSQ.equals(imageCodec);
+        boolean jpeg2000 = ImageCodecFixtures.JPEG2000.equals(imageCodec);
+        boolean iso39794 = preferences.getString("mrtd_pa", "Valid").startsWith("ISO 39794");
+        String biometricEncoding = iso39794 ? "PNG" : "JPEG";
+        String absent = getString(R.string.image_test_not_included);
+        String imageFormats = getString(R.string.image_test_formats, jpeg2000 ? "JPEG 2000" : "JPEG",
+                biometrics ? wsq ? "WSQ" : biometricEncoding : absent,
+                biometrics ? biometricEncoding : absent);
+        String imageSteps = getString(wsq ? biometrics ? R.string.image_test_wsq_reader_steps
+                : R.string.image_test_wsq_enable_steps : jpeg2000 ? R.string.image_test_jp2_reader_steps
+                : R.string.image_test_photo_reader_steps);
+        ((TextView) findViewById(R.id.imageCodecInfo)).setText(imageFormats + "\n" + imageSteps);
+        setFixturePreview(R.id.fingerRightPreview, (wsq ? "codec_dg3_wsq_" : "dg3_") + resource + "_0");
+        setFixturePreview(R.id.fingerLeftPreview, (wsq ? "codec_dg3_wsq_" : "dg3_") + resource + "_1");
         setFixturePreview(R.id.irisRightPreview, "dg4_" + resource + "_0");
         setFixturePreview(R.id.irisLeftPreview, "dg4_" + resource + "_1");
-        ((TextView) findViewById(R.id.biometricPreviewInfo)).setText(biometrics ? loadDetailPreview("biometric", fixture) : "");
+        ((TextView) findViewById(R.id.biometricPreviewInfo)).setText(biometrics
+                ? wsq ? ImageCodecFixtures.wsqPreview(fixture) : loadDetailPreview("biometric", fixture) : "");
         findViewById(R.id.selectMFControls).setVisibility(local && !pace ? View.VISIBLE : View.GONE);
         TextView detailPreview = findViewById(R.id.additionalDetailsPreview);
         boolean showDetails = local && preferences.getBoolean("mrtd_details", false);
@@ -256,7 +280,9 @@ public class MainActivity extends AppCompatActivity {
         setFixturePreview(R.id.dg5Preview, "dg5_" + resource);
         setFixturePreview(R.id.dg7Preview, "dg7_" + resource);
         TextView details = findViewById(R.id.textViewCardDetails);
-        details.setText(local ? getString(R.string.fixture_details, format.equals("TD3") ? "L898902C3" : "D23145890") : emulator);
+        details.setText(local ? getString(pace ? R.string.fixture_details_pace : R.string.fixture_details,
+                format.equals("TD3") ? "L898902C3" : "D23145890",
+                ImageCodecFixtures.JPEG2000.equals(imageCodec) ? "JPEG 2000 160×120" : "JPEG 160×120") : emulator);
         cardStatus.setText(local ? EmulatorSingleton.getStatus() : "Ready");
     }
 

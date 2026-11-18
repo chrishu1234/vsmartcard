@@ -62,6 +62,9 @@ public class EmulatorHostApduService extends HostApduService {
                         }
                     }
                     byte[] response;
+                    final boolean aa = command.length > 1 && (command[1] & 255) == 0x88;
+                    final long started = android.os.SystemClock.elapsedRealtime();
+                    if (aa) Log.i("MRTD_AA", "REQUEST bytes=" + command.length + " generation=" + requestGeneration);
                     try {
                         response = EmulatorSingleton.process(EmulatorHostApduService.this, command);
                     } catch (RuntimeException error) {
@@ -71,6 +74,11 @@ public class EmulatorHostApduService extends HostApduService {
                     synchronized (transactionLock) {
                         if (!destroyed && requestGeneration == generation && response != null) {
                             sendResponseApdu(response);
+                            if (aa) Log.i("MRTD_AA", "RESPONSE sent=true bytes=" + response.length +
+                                    " elapsedMs=" + (android.os.SystemClock.elapsedRealtime() - started));
+                        } else if (aa) {
+                            Log.i("MRTD_AA", "RESPONSE sent=false reason=SESSION_ENDED elapsedMs=" +
+                                    (android.os.SystemClock.elapsedRealtime() - started));
                         }
                     }
                 }

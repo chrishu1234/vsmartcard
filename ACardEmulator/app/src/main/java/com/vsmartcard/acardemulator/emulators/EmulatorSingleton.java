@@ -71,6 +71,13 @@ public class EmulatorSingleton {
 
     public static synchronized void createEmulator(Context context) {
         SharedPreferences SP = PreferenceManager.getDefaultSharedPreferences(context);
+        // Retired diagnostic selections fall back to the normal fixture on upgrade.
+        String chipScenario = SP.getString("mrtd_chip", "Valid");
+        if (!"Valid".equals(chipScenario) && !"Bad AA signature".equals(chipScenario)
+                && !"Wrong CA key".equals(chipScenario)) {
+            chipScenario = "Valid";
+            SP.edit().putString("mrtd_chip", chipScenario).apply();
+        }
         Map<String, ?> preferences = new HashMap<>(SP.getAll());
         if (emulator != null && !preferences.equals(activePreferences)) do_destroy = true;
         // force reloading applets if requested
@@ -81,9 +88,9 @@ public class EmulatorSingleton {
             String str_emulator = SP.getString("emulator", context.getString(R.string.local_mrtd));
             if (str_emulator.equals(context.getString(R.string.local_mrtd))) {
                 String authChoice = SP.getString("mrtd_auth", "PACE");
-                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), authChoice.equals("BAC") ? "BAC" : "PACE", SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false), SP.getBoolean("mrtd_biometric", false));
+                emulator = new TravelDocumentEmulator(SP.getString("mrtd_format", "TD1"), authChoice.equals("BAC") ? "BAC" : "PACE", SP.getString("mrtd_pa", "Valid"), SP.getBoolean("mrtd_displayed", false), SP.getBoolean("mrtd_details", false), SP.getBoolean("mrtd_security", false), SP.getBoolean("mrtd_biometric", false), SP.getString("mrtd_image_codec", com.vsmartcard.acardemulator.emulators.mrtd.ImageCodecFixtures.JPEG));
                 if (!authChoice.equals("BAC")) ((TravelDocumentEmulator)emulator).setPACEPreset(authChoice);
-                ((TravelDocumentEmulator)emulator).setChipScenario(SP.getString("mrtd_chip", "Valid"));
+                ((TravelDocumentEmulator)emulator).setChipScenario(chipScenario);
                 ((TravelDocumentEmulator)emulator).setRequireTerminalAuthentication(SP.getBoolean("mrtd_ta", false) && SP.getBoolean("mrtd_security", false) && SP.getBoolean("mrtd_biometric", false));
                 String mfResponse = SP.getString("mrtd_mf_response", SP.getBoolean("mrtd_reject_mf", false) ? "Reject (6A81)" : "Normal (9000)");
                 ((TravelDocumentEmulator)emulator).setSelectMFResponse(mfResponse.equals("Wrong length (6700)") ? 0x6700 : mfResponse.equals("Reject (6A81)") ? 0x6A81 : 0x9000);

@@ -51,8 +51,19 @@
         <item>@string/vicc</item>
     </string-array>
     <string name="local_mrtd">Local travel document</string>
-    <string name="fixture_details">Document: %1$s\nBirth: 740812   Expiry: 120415\nCAN: 123456 · Photo: JPEG 160×120</string>
-    <string name="local_help">Choose TD1 or TD3 and BAC or PACE. Keep this app in the foreground with NFC enabled, then tap the reader phone. Enter the document number, birth date and expiry shown on this page in the reader.\n\nThese public test cards contain DG1 and a DG2 JPEG color test pattern. Turn on photo reading to display it. PACE uses ECDH-GM, BrainpoolP256r1 and AES-128; MRZ and CAN 123456 are supported.\n\nRemote Virtual Smart Card remains available in Settings.</string>
+    <string name="fixture_details">Document: %1$s\nBirth: 740812   Expiry: 120415\nPhoto: %2$s</string>
+    <string name="fixture_details_pace">Document: %1$s\nBirth: 740812   Expiry: 120415\nCAN: 123456 · Photo: %2$s</string>
+    <string name="image_codec">Image format test</string>
+    <string name="image_test_default">Default images</string>
+    <string name="image_test_jp2">JPEG 2000 portrait (DG2)</string>
+    <string name="image_test_wsq">WSQ fingerprints (DG3)</string>
+    <string name="image_test_formats">DG2 portrait: %1$s\nDG3 fingerprints: %2$s\nDG4 iris: %3$s</string>
+    <string name="image_test_not_included">Not included</string>
+    <string name="image_test_photo_reader_steps">Reader: enable Read photo to test the DG2 portrait.</string>
+    <string name="image_test_jp2_reader_steps">Reader: enable Read photo. JPEG 2000 preview requires a compatible decoder.</string>
+    <string name="image_test_wsq_enable_steps">Enable Biometric images (DG3 / DG4) below to include WSQ fingerprints. Then enable biometric reading on the reader.</string>
+    <string name="image_test_wsq_reader_steps">Reader: enable Read biometric images (DG3 / DG4). WSQ data can be read; the current HarmonyOS demo reports that WSQ preview is not supported.</string>
+    <string name="local_help">Choose TD1, TD2 or TD3 and BAC or PACE. Keep this app in the foreground with NFC enabled, then tap the reader phone. Enter the document number, birth date and expiry shown on this page in the reader.\n\nThese public test cards contain DG1 and a synthetic DG2 portrait. Image format test changes the DG2 portrait or DG3 fingerprints. The main page shows the current formats and reader steps. Enable Biometric images (DG3 / DG4) to include fingerprint and iris records. Default PACE uses ECDH-GM, BrainpoolP256r1 and AES-128; MRZ and CAN 123456 are supported.\n\nRemote Virtual Smart Card remains available in Settings.</string>
     <string name="fixture_format">Document format</string>
     <string name="fixture_authentication">Access control</string>
     <string name="select_mf_response">SELECT MF response</string>
